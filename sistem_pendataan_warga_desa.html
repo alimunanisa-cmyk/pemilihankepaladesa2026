@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pendataan Kependudukan & Warga Desa</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS (xlsx) CDN for Excel / CSV / Google Sheets Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF CDN for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff', 100: '#e0f2fe', 500: '#0284c7',
+                            600: '#0369a1', 700: '#075985', 800: '#0c4a6e', 900: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; }
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none no-print"></div>
+
+    <header class="bg-brand-900 text-white shadow-lg sticky top-0 z-30 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-brand-600 rounded-xl shadow-inner">
+                        <i class="fa-solid fa-users-gear text-lg text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-sm sm:text-base leading-tight tracking-wide">Pendataan Warga Desa</h1>
+                        <p class="text-[11px] text-brand-100/70 hidden sm:block">Sinkronisasi Google Spreadsheet & Administrasi</p>
+                    </div>
+                </div>
+
+                <!-- Desktop Action Controls -->
+                <div class="hidden md:flex items-center gap-2">
+                    <button onclick="openGoogleSheetModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Sinkronisasi dengan Google Spreadsheet">
+                        <i class="fa-solid fa-file-excel text-emerald-300"></i> Hubungkan Spreadsheet
+                    </button>
+                    <button onclick="openUploadModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Upload Data Excel">
+                        <i class="fa-solid fa-file-import"></i> Upload
+                    </button>
+                    <button onclick="openModalTambah()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Tambah Warga Baru (Kode B)">
+                        <i class="fa-solid fa-user-plus"></i> Tambah
+                    </button>
+                    <div class="h-6 w-px bg-brand-700/50 mx-1"></div>
+                    <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Download Excel">
+                        <i class="fa-solid fa-file-excel"></i> Excel
+                    </button>
+                    <button onclick="exportToPDF()" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Download PDF">
+                        <i class="fa-solid fa-file-pdf"></i> PDF
+                    </button>
+                    <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Cetak">
+                        <i class="fa-solid fa-print text-sky-400"></i> Cetak
+                    </button>
+                </div>
+
+                <!-- Mobile Header Buttons -->
+                <div class="flex md:hidden items-center gap-1.5">
+                    <button onclick="openGoogleSheetModal()" class="bg-emerald-700 text-white p-2 rounded-lg text-sm" title="Google Sheet">
+                        <i class="fa-solid fa-file-excel"></i>
+                    </button>
+                    <button onclick="openModalTambah()" class="bg-emerald-600 text-white p-2 rounded-lg text-sm" title="Tambah Warga">
+                        <i class="fa-solid fa-user-plus"></i>
+                    </button>
+                    <button onclick="toggleMobileMenu()" class="bg-brand-800 text-white p-2 rounded-lg text-sm">
+                        <i id="mobileMenuIcon" class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Drawer -->
+        <div id="mobileMenuDropdown" class="hidden md:hidden bg-brand-800 border-t border-brand-700 px-4 py-3 space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="openGoogleSheetModal(); toggleMobileMenu();" class="bg-emerald-700 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-excel"></i> Google Spreadsheet
+                </button>
+                <button onclick="openUploadModal(); toggleMobileMenu();" class="bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-import"></i> Upload File
+                </button>
+            </div>
+            <div class="pt-2 border-t border-brand-700/60 flex flex-wrap items-center justify-around text-xs text-brand-100 gap-y-2">
+                <button onclick="exportToExcel(); toggleMobileMenu();" class="flex items-center gap-1 py-1 px-2 hover:bg-brand-700 rounded"><i class="fa-solid fa-file-excel text-green-400"></i> Excel</button>
+                <button onclick="exportToPDF(); toggleMobileMenu();" class="flex items-center gap-1 py-1 px-2 hover:bg-brand-700 rounded"><i class="fa-solid fa-file-pdf text-rose-400"></i> PDF</button>
+                <button onclick="window.print(); toggleMobileMenu();" class="flex items-center gap-1 py-1 px-2 hover:bg-brand-700 rounded"><i class="fa-solid fa-print text-sky-400"></i> Cetak</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+
+        <!-- Status Codes Legend -->
+        <div class="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 no-print">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <i class="fa-solid fa-tags text-brand-500"></i> Panduan Kode Status Warga (<span id="totalLegendCount">0</span> Total)
+                </h3>
+                <button onclick="toggleLegend()" class="text-xs text-brand-600 hover:underline flex items-center gap-1 font-medium">
+                    <span id="legendToggleText">Sembunyikan</span>
+                    <i id="legendToggleIcon" class="fa-solid fa-chevron-up"></i>
+                </button>
+            </div>
+            <div id="legendGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-1.5 text-xs">
+                <div class="flex items-center justify-between p-1.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-emerald-600 text-white text-[10px]">0</span>
+                        <span class="truncate">Aktif</span>
+                    </div>
+                    <span id="count-code-0" class="font-bold text-[11px] ml-1 px-1 bg-emerald-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-slate-100 border border-slate-300 text-slate-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-slate-700 text-white text-[10px]">1</span>
+                        <span class="truncate">Meninggal</span>
+                    </div>
+                    <span id="count-code-1" class="font-bold text-[11px] ml-1 px-1 bg-slate-200 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-amber-50 border border-amber-200 text-amber-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-amber-600 text-white text-[10px]">2</span>
+                        <span class="truncate">Ganda</span>
+                    </div>
+                    <span id="count-code-2" class="font-bold text-[11px] ml-1 px-1 bg-amber-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-green-50 border border-green-300 text-green-900">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-green-800 text-white text-[10px]">3</span>
+                        <span class="truncate">TNI</span>
+                    </div>
+                    <span id="count-code-3" class="font-bold text-[11px] ml-1 px-1 bg-green-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-indigo-700 text-white text-[10px]">4</span>
+                        <span class="truncate">Polisi</span>
+                    </div>
+                    <span id="count-code-4" class="font-bold text-[11px] ml-1 px-1 bg-indigo-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-purple-50 border border-purple-200 text-purple-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-purple-600 text-white text-[10px]">5</span>
+                        <span class="truncate">Pindah (Luar)</span>
+                    </div>
+                    <span id="count-code-5" class="font-bold text-[11px] ml-1 px-1 bg-purple-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-blue-50 border border-blue-200 text-blue-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-blue-600 text-white text-[10px]">6</span>
+                        <span class="truncate">Pindah (Dalam)</span>
+                    </div>
+                    <span id="count-code-6" class="font-bold text-[11px] ml-1 px-1 bg-blue-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-cyan-50 border border-cyan-200 text-cyan-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-cyan-600 text-white text-[10px]">7</span>
+                        <span class="truncate">Pisah KK</span>
+                    </div>
+                    <span id="count-code-7" class="font-bold text-[11px] ml-1 px-1 bg-cyan-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-rose-50 border border-rose-200 text-rose-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-rose-600 text-white text-[10px]">8</span>
+                        <span class="truncate">Bukan Warga</span>
+                    </div>
+                    <span id="count-code-8" class="font-bold text-[11px] ml-1 px-1 bg-rose-200/60 rounded">0</span>
+                </div>
+                <div class="flex items-center justify-between p-1.5 rounded bg-sky-50 border border-sky-200 text-sky-800">
+                    <div class="flex items-center gap-1 truncate">
+                        <span class="px-1.5 py-0.5 rounded font-bold bg-sky-500 text-white text-[10px]">B</span>
+                        <span class="truncate">Baru</span>
+                    </div>
+                    <span id="count-code-B" class="font-bold text-[11px] ml-1 px-1 bg-sky-200/60 rounded">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STAT CARDS -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 no-print">
+            <div class="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Total Penduduk</p>
+                    <h2 id="cardTotal" class="text-xl sm:text-2xl font-bold text-slate-800 mt-0.5">0</h2>
+                    <p class="text-[11px] text-slate-400 mt-0.5"><span id="cardGenderL">0</span> L / <span id="cardGenderP">0</span> P</p>
+                </div>
+                <div class="w-10 h-10 sm:w-12 sm:h-12 bg-brand-50 text-brand-600 rounded-xl flex items-center justify-center text-base sm:text-xl shadow-inner">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Aktif (Kode 0)</p>
+                    <h2 id="cardAktif" class="text-xl sm:text-2xl font-bold text-emerald-600 mt-0.5">0</h2>
+                    <p class="text-[11px] text-emerald-600/80 mt-0.5" id="cardAktifPct">0% total</p>
+                </div>
+                <div class="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-base sm:text-xl shadow-inner">
+                    <i class="fa-solid fa-user-check"></i>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Pindah & Non-Aktif</p>
+                    <h2 id="cardPindah" class="text-xl sm:text-2xl font-bold text-purple-600 mt-0.5">0</h2>
+                    <p class="text-[11px] text-slate-400 mt-0.5"><span id="cardMeninggal">0</span> Meninggal</p>
+                </div>
+                <div class="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-base sm:text-xl shadow-inner">
+                    <i class="fa-solid fa-person-walking-luggage"></i>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">TNI / POLISI</p>
+                    <h2 id="cardAparat" class="text-xl sm:text-2xl font-bold text-indigo-600 mt-0.5">0</h2>
+                    <p class="text-[11px] text-slate-400 mt-0.5"><span id="cardTni">0</span> TNI / <span id="cardPolisi">0</span> Pol</p>
+                </div>
+                <div class="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-base sm:text-xl shadow-inner">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEARCH & FILTER BAR -->
+        <div class="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-slate-200 space-y-3 no-print">
+            <div class="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchInput" oninput="renderTable()" placeholder="Cari Nama, NIK, NKK, atau DP-ID..." 
+                           class="w-full pl-10 pr-4 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+                    <select id="filterRT" onchange="renderTable()" class="px-2.5 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:ring-2 focus:ring-brand-500 focus:outline-none w-full sm:w-auto">
+                        <option value="">-- Semua RT --</option>
+                    </select>
+                    <select id="filterStatus" onchange="renderTable()" class="px-2.5 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:ring-2 focus:ring-brand-500 focus:outline-none w-full sm:w-auto">
+                        <option value="">-- Semua Status --</option>
+                        <option value="0">Kode 0 = Aktif</option>
+                        <option value="1">Kode 1 = Meninggal</option>
+                        <option value="2">Kode 2 = Ganda</option>
+                        <option value="3">Kode 3 = TNI</option>
+                        <option value="4">Kode 4 = Polisi</option>
+                        <option value="5">Kode 5 = Pindah (Luar)</option>
+                        <option value="6">Kode 6 = Pindah (Dalam)</option>
+                        <option value="7">Kode 7 = Pisah KK</option>
+                        <option value="8">Kode 8 = Bukan Warga</option>
+                        <option value="B">Kode B = Baru</option>
+                    </select>
+                    <select id="filterGender" onchange="renderTable()" class="px-2.5 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:ring-2 focus:ring-brand-500 focus:outline-none w-full sm:w-auto">
+                        <option value="">-- Gender --</option>
+                        <option value="L">Laki-laki (L)</option>
+                        <option value="P">Perempuan (P)</option>
+                    </select>
+                    <button onclick="resetFilters()" class="col-span-2 sm:col-span-1 px-3 py-2 text-xs sm:text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition flex items-center justify-center gap-1.5" title="Reset Filter">
+                        <i class="fa-solid fa-rotate-left"></i> Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-table-list text-brand-600"></i>
+                    <h2 class="font-bold text-slate-800 text-xs sm:text-base">Daftar Pendataan Warga</h2>
+                    <span id="recordCountBadge" class="ml-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-brand-100 text-brand-800">0 Data</span>
+                </div>
+                <div class="text-xs text-slate-500 no-print">
+                    Menampilkan <span id="showingCount">0</span> data
+                </div>
+            </div>
+
+            <!-- Desktop Table -->
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-700 uppercase font-semibold border-b border-slate-200 tracking-wider">
+                            <th class="py-3 px-2 text-center border-r border-slate-200 w-10">NO</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[100px]">DP-ID</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[120px]">NKK</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[120px]">NIK</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[150px]">NAMA</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[100px]">TEMPAT LAHIR</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[90px]">TGL LAHIR</th>
+                            <th class="py-3 px-2 text-center border-r border-slate-200 w-12">USIA</th>
+                            <th class="py-3 px-3 border-r border-slate-200 min-w-[90px]">STS KAWIN</th>
+                            <th class="py-3 px-2 text-center border-r border-slate-200 w-10">L/P</th>
+                            <th class="py-3 px-2 text-center border-r border-slate-200 w-12">RT</th>
+                            <th class="py-3 px-3 text-center min-w-[160px] no-print">AKSI & STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wargaTableBody" class="divide-y divide-slate-200 text-slate-700"></tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Card List -->
+            <div id="wargaMobileCardList" class="block md:hidden divide-y divide-slate-100 p-2 sm:p-3 space-y-2"></div>
+
+            <!-- Pagination Footer -->
+            <div class="px-4 sm:px-5 py-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 no-print">
+                <div class="flex items-center gap-2">
+                    <span>Baris per halaman:</span>
+                    <select id="pageSizeSelect" onchange="changePageSize()" class="border border-slate-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btnPrevPage" onclick="prevPage()" class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-chevron-left mr-1"></i> Sblm
+                    </button>
+                    <span id="pageInfo" class="font-medium">Halaman 1 dari 1</span>
+                    <button id="btnNextPage" onclick="nextPage()" class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Slanj <i class="fa-solid fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="googleSheetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all border border-slate-200">
+            <div class="bg-emerald-700 text-white px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel text-lg"></i>
+                    <h3 class="font-bold text-base">Sinkronisasi Google Spreadsheet</h3>
+                </div>
+                <button onclick="closeGoogleSheetModal()" class="text-emerald-200 hover:text-white transition text-lg p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4 text-xs">
+                <div class="bg-emerald-50 p-3.5 rounded-lg border border-emerald-100 text-emerald-900 space-y-2">
+                    <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-info text-emerald-600"></i> Cara Menghubungkan Google Sheet:</p>
+                    <ol class="list-decimal pl-4 space-y-1 leading-relaxed text-emerald-800">
+                        <li>Buka Google Spreadsheet data warga Anda.</li>
+                        <li>Pilih menu <b>File > Bagikan > Publikasikan ke web</b> (Publish to the web).</li>
+                        <li>Pada bagian format, pilih <b>Nilai Dipisahkan Koma (.csv)</b> atau <b>Microsoft Excel (.xlsx)</b>.</li>
+                        <li>Salin tautan (URL) yang dihasilkan dan tempel di bawah ini.</li>
+                    </ol>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 uppercase mb-1.5">URL Publik Google Spreadsheet (CSV / XLSX)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" 
+                               class="flex-1 px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono text-[11px]">
+                        <button onclick="loadSampleSheetUrl()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold border border-slate-300 whitespace-nowrap" title="Gunakan Contoh Link">
+                            Contoh Link
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <button onclick="resetToDefaultData()" class="text-rose-600 hover:underline font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-right"></i> Kembali ke Data Bawaan
+                    </button>
+                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Belum tersinkron</span>
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
+                <button onclick="closeGoogleSheetModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition">Batal</button>
+                <button onclick="syncFromGoogleSheet()" class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-down"></i> Muat & Sinkronkan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="uploadModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all border border-slate-200">
+            <div class="bg-blue-600 text-white px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel text-lg"></i>
+                    <h3 class="font-bold text-base">Upload Data Excel / CSV</h3>
+                </div>
+                <button onclick="closeUploadModal()" class="text-blue-200 hover:text-white transition text-lg p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4 text-xs">
+                <div class="bg-blue-50 p-3.5 rounded-lg border border-blue-100 text-blue-800">
+                    <p class="font-semibold mb-1.5"><i class="fa-solid fa-circle-info mr-1"></i> Petunjuk Upload:</p>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li>Gunakan template Excel resmi yang disediakan.</li>
+                        <li>Format kolom Tanggal: <b>YYYY-MM-DD</b>.</li>
+                    </ul>
+                </div>
+                <button onclick="downloadTemplate()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow-sm">
+                    <i class="fa-solid fa-download text-blue-600"></i> Unduh Template Excel
+                </button>
+                <div>
+                    <label class="block font-semibold text-slate-700 uppercase mb-1.5">Pilih File (.xlsx, .xls, .csv)</label>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer border border-slate-300 rounded-lg">
+                </div>
+            </div>
+            <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
+                <button onclick="closeUploadModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition">Batal</button>
+                <button onclick="processExcelUpload()" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="wargaModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-3 sm:p-4 no-print overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-6 overflow-hidden transform transition-all border border-slate-200">
+            <div class="bg-brand-900 text-white px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i id="modalHeaderIcon" class="fa-solid fa-user-pen text-brand-500 text-base"></i>
+                    <h3 id="modalTitle" class="font-bold text-base">Ubah Data Warga</h3>
+                </div>
+                <button onclick="closeModal()" class="text-slate-300 hover:text-white transition text-lg p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <form id="wargaForm" onsubmit="saveWarga(event)" class="p-4 sm:p-6 space-y-3 sm:space-y-4 text-xs">
+                <input type="hidden" id="formIndex" value="-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">DP-ID <span class="text-rose-500">*</span></label>
+                        <input type="text" id="formDpId" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Kode Aksi & Status <span class="text-rose-500">*</span></label>
+                        <select id="formKodeAksi" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white">
+                            <option value="0">Kode 0 = Aktif</option>
+                            <option value="1">Kode 1 = Meninggal</option>
+                            <option value="2">Kode 2 = Ganda</option>
+                            <option value="3">Kode 3 = TNI</option>
+                            <option value="4">Kode 4 = Polisi</option>
+                            <option value="5">Kode 5 = Pindah (Luar)</option>
+                            <option value="6">Kode 6 = Pindah (Dalam)</option>
+                            <option value="7">Kode 7 = Pisah KK</option>
+                            <option value="8">Kode 8 = Bukan Warga</option>
+                            <option value="B">Kode B = Baru</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">NKK (Nomor KK) <span class="text-rose-500">*</span></label>
+                        <input type="text" id="formNkk" required maxlength="16" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">NIK <span class="text-rose-500">*</span></label>
+                        <input type="text" id="formNik" required maxlength="16" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Nama Lengkap <span class="text-rose-500">*</span></label>
+                        <input type="text" id="formNama" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Tempat Lahir <span class="text-rose-500">*</span></label>
+                        <input type="text" id="formTempatLahir" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Tanggal Lahir <span class="text-rose-500">*</span></label>
+                        <input type="date" id="formTanggalLahir" required onchange="calculateAgeFromForm()" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Usia (Tahun)</label>
+                        <input type="number" id="formUsia" readonly class="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-100 text-slate-600 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Jenis Kelamin <span class="text-rose-500">*</span></label>
+                        <select id="formGender" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white">
+                            <option value="L">L - Laki-laki</option>
+                            <option value="P">P - Perempuan</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">Status Perkawinan <span class="text-rose-500">*</span></label>
+                        <select id="formStsKawin" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white">
+                            <option value="Belum Kawin">Belum Kawin</option>
+                            <option value="Kawin">Kawin</option>
+                            <option value="Cerai Hidup">Cerai Hidup</option>
+                            <option value="Cerai Mati">Cerai Mati</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 uppercase mb-1">RT <span class="text-rose-500">*</span></label>
+                        <input type="text" id="formRt" required class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-2.5 pt-3.5 border-t border-slate-200 mt-5">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Batal</button>
+                    <button type="submit" class="px-5 py-2 font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition shadow-md flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan Data
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 text-xs">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-xl mx-auto">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-base font-bold text-slate-800">Hapus Data Warga?</h3>
+            <p id="deleteModalText" class="text-slate-600">Apakah Anda yakin ingin menghapus data warga ini?</p>
+            <div class="flex items-center justify-center gap-2 pt-1">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">Batal</button>
+                <button id="btnConfirmDelete" class="px-4 py-2 font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STATUS_CODES = {
+            '0': { label: 'Aktif', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+            '1': { label: 'Meninggal', badgeClass: 'bg-slate-200 text-slate-800 border-slate-400' },
+            '2': { label: 'Ganda', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' },
+            '3': { label: 'TNI', badgeClass: 'bg-green-100 text-green-900 border-green-400 font-bold' },
+            '4': { label: 'Polisi', badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-400 font-bold' },
+            '5': { label: 'Pindah (Luar Desa)', badgeClass: 'bg-purple-100 text-purple-800 border-purple-300' },
+            '6': { label: 'Pindah (Dalam Desa)', badgeClass: 'bg-blue-100 text-blue-800 border-blue-300' },
+            '7': { label: 'Pisah KK', badgeClass: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
+            '8': { label: 'Bukan Warga', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' },
+            'B': { label: 'Baru', badgeClass: 'bg-sky-100 text-sky-800 border-sky-300' }
+        };
+
+        let defaultWargaData = [
+            { dp_id: 'DP-330101001', nkk: '3301011203050001', nik: '3301011508850002', nama: 'BUDI SANTOSO', tempat_lahir: 'Cilacap', tanggal_lahir: '1985-08-15', sts_kawin: 'Kawin', gender: 'L', rt: '001', kode_aksi: '0' },
+            { dp_id: 'DP-330101002', nkk: '3301011203050001', nik: '3301015204880001', nama: 'SITI AMINAH', tempat_lahir: 'Banyumas', tanggal_lahir: '1988-04-12', sts_kawin: 'Kawin', gender: 'P', rt: '001', kode_aksi: '0' },
+            { dp_id: 'DP-330101003', nkk: '3301011203050002', nik: '3301012010780003', nama: 'AGUS SETIAWAN', tempat_lahir: 'Cilacap', tanggal_lahir: '1978-10-20', sts_kawin: 'Kawin', gender: 'L', rt: '001', kode_aksi: '3' },
+            { dp_id: 'DP-330101004', nkk: '3301011203050003', nik: '3301010505920004', nama: 'DEWI PRATIWI', tempat_lahir: 'Kebumen', tanggal_lahir: '1992-05-05', sts_kawin: 'Belum Kawin', gender: 'P', rt: '002', kode_aksi: 'B' },
+            { dp_id: 'DP-330101005', nkk: '3301011203050004', nik: '3301011111650005', nama: 'SLAMET RIYADI', tempat_lahir: 'Cilacap', tanggal_lahir: '1965-11-11', sts_kawin: 'Cerai Mati', gender: 'L', rt: '002', kode_aksi: '1' }
+        ];
+
+        let wargaData = [...defaultWargaData];
+        let dataSourceType = 'local'; // 'local' or 'gsheet'
+        let currentSheetUrl = localStorage.getItem('connected_gsheet_url') || '';
+
+        let currentPage = 1;
+        let pageSize = 25;
+        let filteredData = [];
+        let itemToDeleteIndex = -1;
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenuDropdown');
+            const icon = document.getElementById('mobileMenuIcon');
+            if (menu.classList.contains('hidden')) {
+                menu.classList.remove('hidden');
+                icon.className = 'fa-solid fa-xmark';
+            } else {
+                menu.classList.add('hidden');
+                icon.className = 'fa-solid fa-bars';
+            }
+        }
+
+        function parseExcelDate(val) {
+            if (!val) return '';
+            if (typeof val === 'number') {
+                const utcDays = Math.floor(val - 25569);
+                const utcValue = utcDays * 86400;
+                const dateInfo = new Date(utcValue * 1000);
+                const year = dateInfo.getUTCFullYear();
+                const month = String(dateInfo.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(dateInfo.getUTCDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            let strVal = String(val).trim();
+            if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(strVal)) {
+                const parts = strVal.split(/[-/]/);
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+            const parsed = new Date(strVal);
+            if (!isNaN(parsed.getTime())) {
+                const year = parsed.getFullYear();
+                const month = String(parsed.getMonth() + 1).padStart(2, '0');
+                const day = String(parsed.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            return strVal;
+        }
+
+        function calculateAge(birthDateString) {
+            const cleanedDate = parseExcelDate(birthDateString);
+            if (!cleanedDate) return 0;
+            const birthDate = new Date(cleanedDate);
+            if (isNaN(birthDate.getTime())) return 0;
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            return age >= 0 ? age : 0;
+        }
+
+        function calculateAgeFromForm() {
+            const dateVal = document.getElementById('formTanggalLahir').value;
+            if (dateVal) {
+                document.getElementById('formUsia').value = calculateAge(dateVal);
+            }
+        }
+
+        function updateRTFilterOptions() {
+            const rtSelect = document.getElementById('filterRT');
+            if (!rtSelect) return;
+            const currentSelected = rtSelect.value;
+            const rtCounts = {};
+            wargaData.forEach(item => {
+                const rtVal = String(item.rt || '000').trim();
+                rtCounts[rtVal] = (rtCounts[rtVal] || 0) + 1;
+            });
+            const uniqueRTs = Object.keys(rtCounts).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+            rtSelect.innerHTML = `<option value="">-- Semua RT (${wargaData.length} Data) --</option>`;
+            uniqueRTs.forEach(rt => {
+                const opt = document.createElement('option');
+                opt.value = rt;
+                opt.textContent = `RT ${rt} (${rtCounts[rt]} Warga)`;
+                if (rt === currentSelected) opt.selected = true;
+                rtSelect.appendChild(opt);
+            });
+        }
+
+        function renderTable() {
+            updateRTFilterOptions();
+
+            const search = document.getElementById('searchInput')?.value.toLowerCase().trim() || '';
+            const filterRT = document.getElementById('filterRT')?.value || '';
+            const filterStatus = document.getElementById('filterStatus')?.value || '';
+            const filterGender = document.getElementById('filterGender')?.value || '';
+
+            filteredData = wargaData.filter(item => {
+                const matchSearch = item.nama.toLowerCase().includes(search) ||
+                                    item.nik.includes(search) ||
+                                    item.nkk.includes(search) ||
+                                    item.dp_id.toLowerCase().includes(search);
+                const matchRT = filterRT === '' || String(item.rt).trim() === filterRT;
+                const matchStatus = filterStatus === '' || item.kode_aksi === filterStatus;
+                const matchGender = filterGender === '' || item.gender === filterGender;
+                return matchSearch && matchRT && matchStatus && matchGender;
+            });
+
+            updateKPIs();
+
+            filteredData.sort((a, b) => {
+                if (a.nkk === b.nkk) {
+                    const dateA = new Date(parseExcelDate(a.tanggal_lahir) || '9999-12-31');
+                    const dateB = new Date(parseExcelDate(b.tanggal_lahir) || '9999-12-31');
+                    return dateA - dateB;
+                }
+                return a.nkk.localeCompare(b.nkk);
+            });
+
+            const nkkCounts = {};
+            filteredData.forEach(item => {
+                nkkCounts[item.nkk] = (nkkCounts[item.nkk] || 0) + 1;
+            });
+
+            const totalRecords = filteredData.length;
+            const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalRecords);
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            const tbody = document.getElementById('wargaTableBody');
+            const mobileCardList = document.getElementById('wargaMobileCardList');
+            if (!tbody || !mobileCardList) return;
+
+            tbody.innerHTML = '';
+            mobileCardList.innerHTML = '';
+
+            if (pageData.length === 0) {
+                const emptyHTML = `
+                    <div class="py-12 text-center text-slate-400 bg-slate-50 rounded-xl">
+                        <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                        <p class="text-xs font-medium">Tidak ada data warga yang sesuai filter.</p>
+                    </div>
+                `;
+                tbody.innerHTML = `<tr><td colspan="12">${emptyHTML}</td></tr>`;
+                mobileCardList.innerHTML = emptyHTML;
+            } else {
+                let currentNkk = null;
+                pageData.forEach((item, pageIdx) => {
+                    const globalIdx = wargaData.indexOf(item);
+                    const no = startIndex + pageIdx + 1;
+                    const usia = calculateAge(item.tanggal_lahir);
+                    const statusObj = STATUS_CODES[item.kode_aksi] || { label: 'Status', badgeClass: 'bg-slate-100 text-slate-700' };
+
+                    if (item.nkk !== currentNkk) {
+                        currentNkk = item.nkk;
+                        const count = nkkCounts[currentNkk];
+                        
+                        const groupTr = document.createElement('tr');
+                        groupTr.className = "bg-brand-50 border-y border-brand-200 text-brand-900 font-semibold text-xs";
+                        groupTr.innerHTML = `
+                            <td colspan="12" class="py-2 px-3">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-users-line text-brand-600"></i>
+                                    <span>Keluarga NKK: <span class="font-bold text-brand-700">${escapeHtml(currentNkk)}</span></span>
+                                    <span class="px-2 py-0.5 rounded bg-brand-200 text-brand-800 text-[10px] font-bold ml-1">${count} Anggota</span>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(groupTr);
+
+                        const mobileGroupDiv = document.createElement('div');
+                        mobileGroupDiv.className = "bg-brand-50 text-brand-900 font-semibold text-xs px-3 py-2 rounded-lg flex items-center justify-between border border-brand-200 mt-3 mb-1";
+                        mobileGroupDiv.innerHTML = `
+                            <span class="truncate"><i class="fa-solid fa-users-line mr-1 text-brand-600"></i> NKK: ${escapeHtml(currentNkk)}</span>
+                            <span class="bg-brand-200 text-brand-800 px-1.5 py-0.5 rounded text-[10px] font-bold">${count} Org</span>
+                        `;
+                        mobileCardList.appendChild(mobileGroupDiv);
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50/80 transition text-xs border-b border-slate-200 bg-white";
+                    tr.innerHTML = `
+                        <td class="py-2.5 px-2 text-center border-r border-slate-200 font-semibold text-slate-500">${no}</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200 font-mono font-bold text-brand-700">${escapeHtml(item.dp_id)}</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200 font-mono text-slate-400 italic">${escapeHtml(item.nkk)}</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200 font-mono font-medium text-slate-900">${escapeHtml(item.nik)}</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-800">${escapeHtml(item.nama)}</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200">${escapeHtml(item.tempat_lahir)}</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200 font-mono">${formatDate(item.tanggal_lahir)}</td>
+                        <td class="py-2.5 px-2 text-center border-r border-slate-200 font-bold text-slate-700">${usia} thn</td>
+                        <td class="py-2.5 px-3 border-r border-slate-200">${escapeHtml(item.sts_kawin)}</td>
+                        <td class="py-2.5 px-2 text-center border-r border-slate-200 font-bold ${item.gender === 'L' ? 'text-blue-600' : 'text-pink-600'}">${item.gender}</td>
+                        <td class="py-2.5 px-2 text-center border-r border-slate-200 font-mono font-bold text-slate-700">${escapeHtml(item.rt)}</td>
+                        <td class="py-2 px-2 no-print">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <select onchange="updateKodeAksiDirect(${globalIdx}, this.value)" 
+                                        class="text-[10px] font-semibold px-1.5 py-1 rounded border shadow-sm cursor-pointer focus:outline-none ${statusObj.badgeClass}">
+                                    <option value="0" ${item.kode_aksi === '0' ? 'selected' : ''}>[0] Aktif</option>
+                                    <option value="1" ${item.kode_aksi === '1' ? 'selected' : ''}>[1] Meninggal</option>
+                                    <option value="2" ${item.kode_aksi === '2' ? 'selected' : ''}>[2] Ganda</option>
+                                    <option value="3" ${item.kode_aksi === '3' ? 'selected' : ''}>[3] TNI</option>
+                                    <option value="4" ${item.kode_aksi === '4' ? 'selected' : ''}>[4] Polisi</option>
+                                    <option value="5" ${item.kode_aksi === '5' ? 'selected' : ''}>[5] Pindah (Luar)</option>
+                                    <option value="6" ${item.kode_aksi === '6' ? 'selected' : ''}>[6] Pindah (Dalam)</option>
+                                    <option value="7" ${item.kode_aksi === '7' ? 'selected' : ''}>[7] Pisah KK</option>
+                                    <option value="8" ${item.kode_aksi === '8' ? 'selected' : ''}>[8] Bukan Warga</option>
+                                    <option value="B" ${item.kode_aksi === 'B' ? 'selected' : ''}>[B] Baru</option>
+                                </select>
+                                <button onclick="openModalEdit(${globalIdx})" class="px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded border border-amber-200 transition text-[11px] font-medium flex items-center gap-1" title="Ubah">
+                                    <i class="fa-solid fa-pen-to-square"></i> Ubah
+                                </button>
+                                <button onclick="confirmDelete(${globalIdx})" class="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200 transition text-[11px] font-medium flex items-center gap-1" title="Hapus">
+                                    <i class="fa-solid fa-trash-can"></i> Hapus
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = "bg-white border border-slate-200 rounded-xl p-3 shadow-xs space-y-2 relative";
+                    cardDiv.innerHTML = `
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <span class="text-[10px] font-mono font-bold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100">${escapeHtml(item.dp_id)}</span>
+                                <h3 class="font-bold text-slate-800 text-sm mt-1">${escapeHtml(item.nama)}</h3>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${statusObj.badgeClass}">${statusObj.label}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-slate-600 pt-1 border-t border-slate-100">
+                            <div><span class="text-slate-400">NIK:</span> <span class="font-mono text-slate-800">${escapeHtml(item.nik)}</span></div>
+                            <div><span class="text-slate-400">RT:</span> <span class="font-bold text-slate-800">RT ${escapeHtml(item.rt)}</span></div>
+                            <div><span class="text-slate-400">L/P:</span> <span class="font-bold ${item.gender === 'L' ? 'text-blue-600' : 'text-pink-600'}">${item.gender} (${usia} thn)</span></div>
+                            <div><span class="text-slate-400">Kawin:</span> <span>${escapeHtml(item.sts_kawin)}</span></div>
+                            <div class="col-span-2"><span class="text-slate-400">TTL:</span> <span>${escapeHtml(item.tempat_lahir)}, ${formatDate(item.tanggal_lahir)}</span></div>
+                        </div>
+                        <div class="flex flex-col gap-2 pt-2 border-t border-slate-100 no-print">
+                            <select onchange="updateKodeAksiDirect(${globalIdx}, this.value)" 
+                                    class="text-[11px] font-semibold px-2 py-1.5 rounded border shadow-sm w-full bg-slate-50 ${statusObj.badgeClass}">
+                                <option value="0" ${item.kode_aksi === '0' ? 'selected' : ''}>Status: [0] Aktif</option>
+                                <option value="1" ${item.kode_aksi === '1' ? 'selected' : ''}>Status: [1] Meninggal</option>
+                                <option value="2" ${item.kode_aksi === '2' ? 'selected' : ''}>Status: [2] Ganda</option>
+                                <option value="3" ${item.kode_aksi === '3' ? 'selected' : ''}>Status: [3] TNI</option>
+                                <option value="4" ${item.kode_aksi === '4' ? 'selected' : ''}>Status: [4] Polisi</option>
+                                <option value="5" ${item.kode_aksi === '5' ? 'selected' : ''}>Status: [5] Pindah (Luar)</option>
+                                <option value="6" ${item.kode_aksi === '6' ? 'selected' : ''}>Status: [6] Pindah (Dalam)</option>
+                                <option value="7" ${item.kode_aksi === '7' ? 'selected' : ''}>Status: [7] Pisah KK</option>
+                                <option value="8" ${item.kode_aksi === '8' ? 'selected' : ''}>Status: [8] Bukan Warga</option>
+                                <option value="B" ${item.kode_aksi === 'B' ? 'selected' : ''}>Status: [B] Baru</option>
+                            </select>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="openModalEdit(${globalIdx})" class="py-1.5 px-3 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg border border-amber-200 transition text-xs font-semibold flex items-center justify-center gap-1">
+                                    <i class="fa-solid fa-pen-to-square"></i> Ubah
+                                </button>
+                                <button onclick="confirmDelete(${globalIdx})" class="py-1.5 px-3 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 transition text-xs font-semibold flex items-center justify-center gap-1">
+                                    <i class="fa-solid fa-trash-can"></i> Hapus
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    mobileCardList.appendChild(cardDiv);
+                });
+            }
+
+            document.getElementById('recordCountBadge').textContent = `${totalRecords} Data`;
+            document.getElementById('showingCount').textContent = pageData.length;
+            document.getElementById('pageInfo').textContent = `Hal ${currentPage}/${totalPages}`;
+            document.getElementById('btnPrevPage').disabled = (currentPage <= 1);
+            document.getElementById('btnNextPage').disabled = (currentPage >= totalPages);
+        }
+
+        function updateKPIs() {
+            const total = filteredData.length;
+            const genderL = filteredData.filter(d => d.gender === 'L').length;
+            const genderP = filteredData.filter(d => d.gender === 'P').length;
+            const aktif = filteredData.filter(d => d.kode_aksi === '0').length;
+            const meninggal = filteredData.filter(d => d.kode_aksi === '1').length;
+            const pindah = filteredData.filter(d => d.kode_aksi === '5' || d.kode_aksi === '6').length;
+            const tni = filteredData.filter(d => d.kode_aksi === '3').length;
+            const polisi = filteredData.filter(d => d.kode_aksi === '4').length;
+
+            document.getElementById('cardTotal').textContent = total;
+            document.getElementById('cardGenderL').textContent = genderL;
+            document.getElementById('cardGenderP').textContent = genderP;
+            document.getElementById('cardAktif').textContent = aktif;
+            document.getElementById('cardAktifPct').textContent = total > 0 ? `${Math.round((aktif/total)*100)}% total` : '0% total';
+            document.getElementById('cardPindah').textContent = pindah;
+            document.getElementById('cardMeninggal').textContent = meninggal;
+            document.getElementById('cardAparat').textContent = tni + polisi;
+            document.getElementById('cardTni').textContent = tni;
+            document.getElementById('cardPolisi').textContent = polisi;
+
+            document.getElementById('totalLegendCount').textContent = wargaData.length;
+            ['0', '1', '2', '3', '4', '5', '6', '7', '8', 'B'].forEach(code => {
+                const badgeEl = document.getElementById(`count-code-${code}`);
+                if (badgeEl) {
+                    badgeEl.textContent = wargaData.filter(d => String(d.kode_aksi) === code).length;
+                }
+            });
+        }
+
+        // Google Sheet Integration Functions
+        function openGoogleSheetModal() {
+            document.getElementById('sheetUrlInput').value = currentSheetUrl;
+            document.getElementById('googleSheetModal').classList.remove('hidden');
+            updateSyncStatusUI();
+        }
+
+        function closeGoogleSheetModal() {
+            document.getElementById('googleSheetModal').classList.add('hidden');
+        }
+
+        function loadSampleSheetUrl() {
+            document.getElementById('sheetUrlInput').value = 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/gviz/tq?tqx=out:csv';
+        }
+
+        async function syncFromGoogleSheet() {
+            const urlInput = document.getElementById('sheetUrlInput').value.trim();
+            if (!urlInput) {
+                showToast('Masukkan URL Google Spreadsheet yang valid!', 'rose');
+                return;
+            }
+
+            const statusIndicator = document.getElementById('syncStatusIndicator');
+            statusIndicator.textContent = 'Status: Menghubungkan ke Google Sheet...';
+            statusIndicator.className = 'text-amber-600 font-semibold italic';
+
+            try {
+                let fetchUrl = urlInput;
+                if (fetchUrl.includes('/edit') && !fetchUrl.includes('export?format=csv') && !fetchUrl.includes('gviz/tq')) {
+                    fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
+                }
+
+                const response = await fetch(fetchUrl);
+                if (!response.ok) throw new Error('Gagal mengakses URL Spreadsheet. Pastikan sudah dipublikasikan ke web.');
+                
+                const csvText = await response.text();
+                const workbook = XLSX.read(csvText, {type: 'string'});
+                const sheetName = workbook.SheetNames[0];
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {raw: false});
+
+                if (jsonData.length === 0) {
+                    throw new Error('Spreadsheet kosong atau format tidak dikenali.');
+                }
+
+                let importedCount = 0;
+                let newMappedData = [];
+
+                jsonData.forEach(row => {
+                    let rawDate = row["TANGGAL LAHIR"] || row["Tanggal Lahir"] || row["tanggal_lahir"] || row["Tgl Lahir"] || "2000-01-01";
+                    let namaVal = row["NAMA"] || row["Nama"] || row["nama"] || row["Nama Lengkap"] || "";
+                    let nikVal = row["NIK"] || row["nik"] || "";
+
+                    if (nikVal) {
+                        newMappedData.push({
+                            dp_id: String(row["DP-ID"] || row["dp_id"] || `DP-${Math.floor(Math.random() * 1000000000)}`),
+                            nkk: String(row["NKK"] || row["nkk"] || ""),
+                            nik: String(nikVal),
+                            nama: String(namaVal).toUpperCase(),
+                            tempat_lahir: String(row["TEMPAT LAHIR"] || row["tempat_lahir"] || row["Tempat Lahir"] || ""),
+                            tanggal_lahir: parseExcelDate(rawDate),
+                            sts_kawin: String(row["STS KAWIN"] || row["sts_kawin"] || row["Status Kawin"] || "Belum Kawin"),
+                            gender: String(row["GENDER"] || row["gender"] || row["Jenis Kelamin"] || "L").charAt(0).toUpperCase(),
+                            rt: String(row["RT"] || row["rt"] || "001").trim(),
+                            kode_aksi: String(row["KODE AKSI"] || row["kode_aksi"] || row["Kode"] || "0")
+                        });
+                        importedCount++;
+                    }
+                });
+
+                if (importedCount > 0) {
+                    wargaData = newMappedData;
+                    dataSourceType = 'gsheet';
+                    currentSheetUrl = urlInput;
+                    localStorage.setItem('connected_gsheet_url', currentSheetUrl);
+                    
+                    closeGoogleSheetModal();
+                    renderTable();
+                    showToast(`Berhasil menyinkronkan ${importedCount} data dari Google Spreadsheet!`);
+                } else {
+                    throw new Error('Tidak ada data NIK valid yang ditemukan pada Spreadsheet.');
+                }
+            } catch (err) {
+                console.error(err);
+                statusIndicator.textContent = `Error: ${err.message}`;
+                statusIndicator.className = 'text-rose-600 font-semibold italic';
+                showToast(`Sinkronisasi Gagal: ${err.message}`, 'rose');
+            }
+        }
+
+        function resetToDefaultData() {
+            wargaData = [...defaultWargaData];
+            dataSourceType = 'local';
+            currentSheetUrl = '';
+            localStorage.removeItem('connected_gsheet_url');
+            closeGoogleSheetModal();
+            renderTable();
+            showToast('Sumber data dikembalikan ke data bawaan lokal.');
+        }
+
+        function updateSyncStatusUI() {
+            const statusIndicator = document.getElementById('syncStatusIndicator');
+            if (dataSourceType === 'gsheet') {
+                statusIndicator.textContent = 'Status: Terhubung aktif';
+                statusIndicator.className = 'text-blue-600 font-semibold italic';
+            } else {
+                statusIndicator.textContent = 'Status: Menggunakan data lokal';
+                statusIndicator.className = 'text-slate-500 italic';
+            }
+        }
+
+        // Standard Warga Operations
+        function updateKodeAksiDirect(index, newKode) {
+            wargaData[index].kode_aksi = newKode;
+            const statusName = STATUS_CODES[newKode]?.label || 'Status';
+            showToast(`Status <b>${wargaData[index].nama}</b> diubah ke <b>Kode ${newKode} (${statusName})</b>`);
+            renderTable();
+        }
+
+        function openModalTambah() {
+            document.getElementById('modalTitle').textContent = 'Tambah Warga Baru (Kode B)';
+            document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-plus text-emerald-400 text-base';
+            document.getElementById('formIndex').value = '-1';
+            document.getElementById('wargaForm').reset();
+            const nextNum = String(wargaData.length + 1).padStart(3, '0');
+            document.getElementById('formDpId').value = `DP-330101${nextNum}`;
+            document.getElementById('formKodeAksi').value = 'B';
+            document.getElementById('wargaModal').classList.remove('hidden');
+        }
+
+        function openModalEdit(index) {
+            const item = wargaData[index];
+            document.getElementById('modalTitle').textContent = `Ubah Data - ${item.nama}`;
+            document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-pen text-amber-400 text-base';
+            document.getElementById('formIndex').value = index;
+
+            document.getElementById('formDpId').value = item.dp_id;
+            document.getElementById('formKodeAksi').value = item.kode_aksi;
+            document.getElementById('formNkk').value = item.nkk;
+            document.getElementById('formNik').value = item.nik;
+            document.getElementById('formNama').value = item.nama;
+            document.getElementById('formTempatLahir').value = item.tempat_lahir;
+            document.getElementById('formTanggalLahir').value = parseExcelDate(item.tanggal_lahir);
+            document.getElementById('formUsia').value = calculateAge(item.tanggal_lahir);
+            document.getElementById('formStsKawin').value = item.sts_kawin;
+            document.getElementById('formGender').value = item.gender;
+            document.getElementById('formRt').value = item.rt;
+
+            document.getElementById('wargaModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('wargaModal').classList.add('hidden');
+        }
+
+        function saveWarga(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('formIndex').value);
+            const newItem = {
+                dp_id: document.getElementById('formDpId').value.trim(),
+                kode_aksi: document.getElementById('formKodeAksi').value,
+                nkk: document.getElementById('formNkk').value.trim(),
+                nik: document.getElementById('formNik').value.trim(),
+                nama: document.getElementById('formNama').value.trim().toUpperCase(),
+                tempat_lahir: document.getElementById('formTempatLahir').value.trim(),
+                tanggal_lahir: document.getElementById('formTanggalLahir').value,
+                sts_kawin: document.getElementById('formStsKawin').value,
+                gender: document.getElementById('formGender').value,
+                rt: document.getElementById('formRt').value.trim()
+            };
+
+            if (index === -1) {
+                wargaData.unshift(newItem);
+                showToast(`Warga baru <b>${newItem.nama}</b> berhasil ditambahkan`);
+            } else {
+                wargaData[index] = newItem;
+                showToast(`Data warga <b>${newItem.nama}</b> berhasil diperbarui!`);
+            }
+
+            closeModal();
+            renderTable();
+        }
+
+        function confirmDelete(index) {
+            itemToDeleteIndex = index;
+            const item = wargaData[index];
+            document.getElementById('deleteModalText').innerHTML = `Hapus data warga <b>${item.nama}</b> (NIK: ${item.nik})?`;
+            document.getElementById('btnConfirmDelete').onclick = () => executeDelete();
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            itemToDeleteIndex = -1;
+        }
+
+        function executeDelete() {
+            if (itemToDeleteIndex > -1) {
+                const deletedName = wargaData[itemToDeleteIndex].nama;
+                wargaData.splice(itemToDeleteIndex, 1);
+                showToast(`Data warga <b>${deletedName}</b> telah dihapus.`, 'rose');
+                closeDeleteModal();
+                renderTable();
+            }
+        }
+
+        function prevPage() { if (currentPage > 1) { currentPage--; renderTable(); } }
+        function nextPage() {
+            const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
+            if (currentPage < totalPages) { currentPage++; renderTable(); }
+        }
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+            currentPage = 1;
+            renderTable();
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterRT').value = '';
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterGender').value = '';
+            currentPage = 1;
+            renderTable();
+            showToast('Filter telah direset');
+        }
+
+        function toggleLegend() {
+            const grid = document.getElementById('legendGrid');
+            const text = document.getElementById('legendToggleText');
+            const icon = document.getElementById('legendToggleIcon');
+            if (grid.classList.contains('hidden')) {
+                grid.classList.remove('hidden');
+                text.textContent = 'Sembunyikan';
+                icon.className = 'fa-solid fa-chevron-up';
+            } else {
+                grid.classList.add('hidden');
+                text.textContent = 'Tampilkan Legend';
+                icon.className = 'fa-solid fa-chevron-down';
+            }
+        }
+
+        function formatDate(dateStr) {
+            const cleaned = parseExcelDate(dateStr);
+            if (!cleaned) return '-';
+            const parts = cleaned.split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            return cleaned;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function showToast(message, color = 'emerald') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 transform transition-all duration-300 translate-y-2 opacity-0 text-xs max-w-sm`;
+            let icon = 'fa-circle-check text-emerald-400';
+            if (color === 'rose') icon = 'fa-circle-exclamation text-rose-400';
+            toast.innerHTML = `<i class="fa-solid ${icon} text-base flex-shrink-0"></i><div>${message}</div>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Export & Excel Upload Modals
+        function openUploadModal() { document.getElementById('uploadModal').classList.remove('hidden'); }
+        function closeUploadModal() { document.getElementById('uploadModal').classList.add('hidden'); }
+
+        function downloadTemplate() {
+            const templateHeaders = [["DP-ID", "NKK", "NIK", "NAMA", "TEMPAT LAHIR", "TANGGAL LAHIR", "STS KAWIN", "GENDER", "RT", "KODE AKSI"]];
+            const sampleData = [["DP-330101999", "3301011234567890", "3301019876543210", "CONTOH NAMA", "JAKARTA", "1990-01-01", "Belum Kawin", "L", "001", "0"]];
+            const ws = XLSX.utils.aoa_to_sheet([...templateHeaders, ...sampleData]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Template Data Warga");
+            XLSX.writeFile(wb, "Template_Upload_Warga.xlsx");
+            showToast("Template Excel diunduh!", "emerald");
+        }
+
+        function processExcelUpload() {
+            const file = document.getElementById('excelFileInput').files[0];
+            if (!file) { showToast("Pilih file Excel!", "rose"); return; }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {raw: false});
+                    if (jsonData.length === 0) { showToast("File Excel kosong!", "rose"); return; }
+                    
+                    let importedCount = 0;
+                    jsonData.forEach(row => {
+                        if (row["NAMA"] === "CONTOH NAMA") return;
+                        let rawDate = row["TANGGAL LAHIR"] || row["Tanggal Lahir"] || "2000-01-01";
+                        if (row["NIK"]) {
+                            wargaData.push({
+                                dp_id: String(row["DP-ID"] || `DP-${Math.floor(Math.random() * 1000000000)}`),
+                                nkk: String(row["NKK"] || ""),
+                                nik: String(row["NIK"]),
+                                nama: String(row["NAMA"] || "TANPA NAMA").toUpperCase(),
+                                tempat_lahir: String(row["TEMPAT LAHIR"] || ""),
+                                tanggal_lahir: parseExcelDate(rawDate),
+                                sts_kawin: String(row["STS KAWIN"] || "Belum Kawin"),
+                                gender: String(row["GENDER"] || "L"),
+                                rt: String(row["RT"] || "001").trim(),
+                                kode_aksi: String(row["KODE AKSI"] || "0")
+                            });
+                            importedCount++;
+                        }
+                    });
+                    if (importedCount > 0) {
+                        dataSourceType = 'local';
+                        showToast(`Berhasil mengimpor ${importedCount} data!`);
+                        closeUploadModal();
+                        renderTable();
+                    }
+                } catch (err) {
+                    showToast("Gagal membaca file Excel.", "rose");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportToExcel() {
+            if (filteredData.length === 0) { showToast('Tidak ada data!', 'rose'); return; }
+            const exportData = [];
+            filteredData.forEach((item, idx) => {
+                exportData.push({
+                    "NO": idx + 1, "DP-ID": item.dp_id, "NKK": item.nkk, "NIK": item.nik, "NAMA LENGKAP": item.nama,
+                    "TEMPAT LAHIR": item.tempat_lahir, "TANGGAL LAHIR": parseExcelDate(item.tanggal_lahir), "USIA": calculateAge(item.tanggal_lahir),
+                    "STATUS PERKAWINAN": item.sts_kawin, "GENDER": item.gender, "RT": item.rt,
+                    "KODE": item.kode_aksi, "STATUS": STATUS_CODES[item.kode_aksi]?.label || '-'
+                });
+            });
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Data Warga");
+            XLSX.writeFile(wb, `Laporan_Warga_${new Date().toISOString().slice(0,10)}.xlsx`);
+            showToast('Berhasil mengunduh Excel');
+        }
+
+        function exportToPDF() {
+            if (filteredData.length === 0) { showToast('Tidak ada data!', 'rose'); return; }
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('l', 'mm', 'a4'); 
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(15);
+                doc.text("Laporan Data Kependudukan & Warga Desa", 14, 15);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 14, 21);
+
+                const headers = [["NO", "NKK", "NIK", "NAMA LENGKAP", "TGL LAHIR", "USIA", "L/P", "RT", "STATUS"]];
+                const data = [];
+                filteredData.forEach((item, idx) => {
+                    data.push([idx + 1, item.nkk, item.nik, item.nama, formatDate(item.tanggal_lahir), calculateAge(item.tanggal_lahir), item.gender, item.rt, STATUS_CODES[item.kode_aksi]?.label || '']);
+                });
+
+                doc.autoTable({
+                    head: headers, body: data, startY: 26, theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 2, font: 'helvetica' },
+                    headStyles: { fillColor: [3, 105, 161], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    margin: { top: 15, right: 14, bottom: 15, left: 14 }
+                });
+                doc.save(`Laporan_Warga_${new Date().toISOString().slice(0,10)}.pdf`);
+                showToast('Berhasil mengunduh PDF');
+            } catch (error) {
+                showToast("Gagal membuat PDF.", "rose");
+            }
+        }
+
+        window.onload = function() {
+            if (currentSheetUrl) {
+                document.getElementById('sheetUrlInput').value = currentSheetUrl;
+                syncFromGoogleSheet();
+            } else {
+                renderTable();
+            }
+        };
+    </script>
+</body>
+</html>
