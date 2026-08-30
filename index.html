@@ -65,13 +65,16 @@
                 <!-- Desktop Action Controls -->
                 <div class="hidden md:flex items-center gap-2">
                     <button onclick="openGoogleSheetModal()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Sinkronisasi dengan Google Spreadsheet">
-                        <i class="fa-solid fa-file-excel text-emerald-300"></i> Hubungkan Spreadsheet
+                        <i class="fa-solid fa-file-excel text-emerald-300"></i> Cloud Sheet
                     </button>
                     <button onclick="openUploadModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Upload Data Excel">
                         <i class="fa-solid fa-file-import"></i> Upload
                     </button>
-                    <button onclick="openModalTambah()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Tambah Warga Baru (Kode B)">
+                    <button onclick="openModalTambah()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Tambah Warga Baru">
                         <i class="fa-solid fa-user-plus"></i> Tambah
+                    </button>
+                    <button onclick="confirmDeleteAll()" class="bg-rose-700 hover:bg-rose-600 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm" title="Hapus Semua Data">
+                        <i class="fa-solid fa-trash-can"></i> Kosongkan
                     </button>
                     <div class="h-6 w-px bg-brand-700/50 mx-1"></div>
                     <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm" title="Download Excel">
@@ -104,12 +107,15 @@
         <div id="mobileMenuDropdown" class="hidden md:hidden bg-brand-800 border-t border-brand-700 px-4 py-3 space-y-2">
             <div class="grid grid-cols-2 gap-2">
                 <button onclick="openGoogleSheetModal(); toggleMobileMenu();" class="bg-emerald-700 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-file-excel"></i> Google Spreadsheet
+                    <i class="fa-solid fa-file-excel"></i> Cloud Sheet
                 </button>
                 <button onclick="openUploadModal(); toggleMobileMenu();" class="bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
                     <i class="fa-solid fa-file-import"></i> Upload File
                 </button>
             </div>
+            <button onclick="confirmDeleteAll(); toggleMobileMenu();" class="w-full bg-rose-700 hover:bg-rose-600 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
+                <i class="fa-solid fa-trash-can"></i> Kosongkan Data
+            </button>
             <div class="pt-2 border-t border-brand-700/60 flex flex-wrap items-center justify-around text-xs text-brand-100 gap-y-2">
                 <button onclick="exportToExcel(); toggleMobileMenu();" class="flex items-center gap-1 py-1 px-2 hover:bg-brand-700 rounded"><i class="fa-solid fa-file-excel text-green-400"></i> Excel</button>
                 <button onclick="exportToPDF(); toggleMobileMenu();" class="flex items-center gap-1 py-1 px-2 hover:bg-brand-700 rounded"><i class="fa-solid fa-file-pdf text-rose-400"></i> PDF</button>
@@ -520,6 +526,7 @@
         </div>
     </div>
 
+    <!-- Modal Hapus Tunggal -->
     <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 text-xs">
             <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-xl mx-auto">
@@ -530,6 +537,21 @@
             <div class="flex items-center justify-center gap-2 pt-1">
                 <button onclick="closeDeleteModal()" class="px-4 py-2 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">Batal</button>
                 <button id="btnConfirmDelete" class="px-4 py-2 font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Hapus Semua Data -->
+    <div id="deleteAllModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 text-xs">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-xl mx-auto">
+                <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
+            </div>
+            <h3 class="text-base font-bold text-slate-800">Hapus SEMUA Data?</h3>
+            <p class="text-slate-600 leading-relaxed">Peringatan: Tindakan ini akan menghapus <b>seluruh data warga</b> secara permanen dari perangkat ini dan juga dari Cloud (jika terhubung).<br><br>Apakah Anda sangat yakin?</p>
+            <div class="flex items-center justify-center gap-2 pt-2">
+                <button onclick="closeDeleteAllModal()" class="px-4 py-2.5 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Batal</button>
+                <button onclick="executeDeleteAll()" class="px-4 py-2.5 font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition">Ya, Kosongkan Data</button>
             </div>
         </div>
     </div>
@@ -582,8 +604,16 @@
             }
         }
 
+        // Helper untuk memecah array agar proses upload ke Cloud tidak error (batas maksimal 500 per batch)
+        function chunkArray(arr, size) {
+            const chunks = [];
+            for (let i = 0; i < arr.length; i += size) {
+                chunks.push(arr.slice(i, i + size));
+            }
+            return chunks;
+        }
+
         async function initAuthAndSync() {
-            // Load local backup first so UI is instantly responsive
             const localSaved = localStorage.getItem('warga_desa_local_cache');
             if (localSaved) {
                 try {
@@ -614,22 +644,34 @@
                         const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
                         
                         onSnapshot(colRef, async (snapshot) => {
+                            wargaData = [];
+                            let systemDeleted = false;
+                            
+                            snapshot.forEach((docSnap) => {
+                                if (docSnap.id === 'SYSTEM_DELETED') {
+                                    systemDeleted = true;
+                                } else {
+                                    wargaData.push({ id: docSnap.id, ...docSnap.data() });
+                                }
+                            });
+
                             if (snapshot.empty) {
+                                // Apabila benar-benar baru pertama kali dibuka, kirim data bawaan
                                 const batch = writeBatch(db);
                                 defaultWargaData.forEach(item => {
                                     const docRef = doc(colRef, item.id);
                                     batch.set(docRef, item);
                                 });
                                 await batch.commit();
-                            } else {
-                                wargaData = [];
-                                snapshot.forEach((docSnap) => {
-                                    wargaData.push({ id: docSnap.id, ...docSnap.data() });
-                                });
+                            } else if (systemDeleted && wargaData.length === 0) {
+                                // Jika dikosongkan secara sengaja melalui tombol "Hapus Semua"
                                 saveToLocalStorage();
                                 renderTable();
-                                updateSyncStatusIndicator(true, "Live Cloud Sync Aktif");
+                            } else {
+                                saveToLocalStorage();
+                                renderTable();
                             }
+                            updateSyncStatusIndicator(true, "Live Cloud Sync Aktif");
                         }, (error) => {
                             console.warn("Firestore snapshot warning, using local cache:", error);
                             updateSyncStatusIndicator(false, "Mode Offline (Menggunakan Cache Lokal)");
@@ -806,7 +848,7 @@
                 const emptyHTML = `
                     <div class="py-12 text-center text-slate-400 bg-slate-50 rounded-xl">
                         <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
-                        <p class="text-xs font-medium">Tidak ada data warga yang sesuai filter.</p>
+                        <p class="text-xs font-medium">Tidak ada data warga yang tersedia.</p>
                     </div>
                 `;
                 tbody.innerHTML = `<tr><td colspan="12">${emptyHTML}</td></tr>`;
@@ -996,12 +1038,10 @@
                     fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
                 }
 
-                // Try direct fetch or CORS proxy fallback
                 let response;
                 try {
                     response = await fetch(fetchUrl);
                 } catch (corsErr) {
-                    // Fallback using public CORS proxy if direct fetch is blocked by browser CORS policy
                     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fetchUrl)}`;
                     response = await fetch(proxyUrl);
                 }
@@ -1052,11 +1092,14 @@
                     if (db && auth && auth.currentUser) {
                         try {
                             const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
-                            const batch = writeBatch(db);
-                            newCloudBatch.forEach(item => {
-                                batch.set(doc(colRef, item.id), item);
-                            });
-                            await batch.commit();
+                            const chunks = chunkArray(newCloudBatch, 400); // Menggunakan chunk
+                            for (const chunk of chunks) {
+                                const batch = writeBatch(db);
+                                chunk.forEach(item => {
+                                    batch.set(doc(colRef, item.id), item);
+                                });
+                                await batch.commit();
+                            }
                         } catch (cloudErr) {
                             console.warn("Cloud batch write warning:", cloudErr);
                         }
@@ -1088,6 +1131,44 @@
             closeGoogleSheetModal();
             showToast('Data di-reset ke data bawaan.');
         };
+
+        // --- FUNGSI MODAL TAMBAH & UBAH --- //
+        window.openModalTambah = function() {
+            document.getElementById('wargaForm').reset();
+            document.getElementById('formDocId').value = '';
+            document.getElementById('modalTitle').textContent = 'Tambah Data Warga Baru';
+            document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-plus text-brand-500 text-base';
+            document.getElementById('formDpId').value = `DP-${Math.floor(Math.random() * 1000000000)}`;
+            document.getElementById('formKodeAksi').value = 'B';
+            document.getElementById('wargaModal').classList.remove('hidden');
+        };
+
+        window.openModalEdit = function(id) {
+            const item = wargaData.find(d => d.id === id);
+            if (!item) return;
+            
+            document.getElementById('formDocId').value = item.id;
+            document.getElementById('formDpId').value = item.dp_id || '';
+            document.getElementById('formKodeAksi').value = item.kode_aksi || '0';
+            document.getElementById('formNkk').value = item.nkk || '';
+            document.getElementById('formNik').value = item.nik || '';
+            document.getElementById('formNama').value = item.nama || '';
+            document.getElementById('formTempatLahir').value = item.tempat_lahir || '';
+            document.getElementById('formTanggalLahir').value = item.tanggal_lahir || '';
+            calculateAgeFromForm();
+            document.getElementById('formStsKawin').value = item.sts_kawin || 'Belum Kawin';
+            document.getElementById('formGender').value = item.gender || 'L';
+            document.getElementById('formRt').value = item.rt || '';
+
+            document.getElementById('modalTitle').textContent = 'Ubah Data Warga';
+            document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-pen text-brand-500 text-base';
+            document.getElementById('wargaModal').classList.remove('hidden');
+        };
+
+        window.closeModal = function() {
+            document.getElementById('wargaModal').classList.add('hidden');
+        };
+        // ---------------------------------- //
 
         window.updateKodeAksiDirect = async function(id, newKode) {
             const item = wargaData.find(d => d.id === id);
@@ -1190,6 +1271,47 @@
                 }
             }
         }
+
+        // --- FUNGSI HAPUS SEMUA DATA --- //
+        window.confirmDeleteAll = function() {
+            document.getElementById('deleteAllModal').classList.remove('hidden');
+        };
+
+        window.closeDeleteAllModal = function() {
+            document.getElementById('deleteAllModal').classList.add('hidden');
+        };
+
+        window.executeDeleteAll = async function() {
+            const tempWargaData = [...wargaData];
+            wargaData = [];
+            saveToLocalStorage();
+            renderTable();
+            closeDeleteAllModal();
+            showToast('Semua data berhasil dihapus!', 'emerald');
+
+            if (db && auth && auth.currentUser) {
+                try {
+                    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                    const chunks = chunkArray(tempWargaData, 400); // Menggunakan chunk
+                    
+                    for (const chunk of chunks) {
+                        const batch = writeBatch(db);
+                        chunk.forEach(item => {
+                            batch.delete(doc(colRef, item.id));
+                        });
+                        await batch.commit();
+                    }
+
+                    // Memberikan tanda agar data contoh tidak otomatis kembali setelah dihapus semua
+                    await setDoc(doc(colRef, 'SYSTEM_DELETED'), { deletedAt: new Date().toISOString() });
+                    
+                } catch (err) {
+                    console.warn("Cloud delete all warning:", err);
+                    showToast('Sebagian data cloud mungkin gagal dihapus.', 'rose');
+                }
+            }
+        };
+        // ------------------------------- //
 
         window.prevPage = function() { if (currentPage > 1) { currentPage--; renderTable(); } };
         window.nextPage = function() {
@@ -1330,11 +1452,14 @@
                         if (db && auth && auth.currentUser) {
                             try {
                                 const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
-                                const batch = writeBatch(db);
-                                uploadedBatch.forEach(item => {
-                                    batch.set(doc(colRef, item.id), item);
-                                });
-                                await batch.commit();
+                                const chunks = chunkArray(uploadedBatch, 400); // Menggunakan chunk
+                                for (const chunk of chunks) {
+                                    const batch = writeBatch(db);
+                                    chunk.forEach(item => {
+                                        batch.set(doc(colRef, item.id), item);
+                                    });
+                                    await batch.commit();
+                                }
                             } catch (cloudErr) {
                                 console.warn("Cloud batch upload warning:", cloudErr);
                             }
