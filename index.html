@@ -1260,8 +1260,12 @@
             reader.onload = async function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {raw: false});
+                    // Use cellDates and dense options to prevent compressed size stream corruption errors
+                    const workbook = XLSX.read(data, {type: 'array', cellDates: true, dense: true});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {raw: false, defval: ""});
+                    
                     if (jsonData.length === 0) { showToast("File Excel kosong!", "rose"); return; }
                     
                     if (!db || !auth || !auth.currentUser) return;
@@ -1270,23 +1274,35 @@
 
                     let importedCount = 0;
                     jsonData.forEach(row => {
-                        if (row["NAMA"] === "CONTOH NAMA") return;
-                        let rawDate = row["TANGGAL LAHIR"] || row["Tanggal Lahir"] || "2000-01-01";
-                        if (row["NIK"]) {
+                        // Handle potential case-insensitive keys or dense array format
+                        const getVal = (keys) => {
+                            for (let k of keys) {
+                                if (row[k] !== undefined && row[k] !== null) return row[k];
+                            }
+                            return "";
+                        };
+
+                        const namaVal = getVal(["NAMA", "Nama", "nama", "NAMA LENGKAP", "Nama Lengkap"]);
+                        if (!namaVal || namaVal === "CONTOH NAMA") return;
+                        
+                        let rawDate = getVal(["TANGGAL LAHIR", "Tanggal Lahir", "tanggal_lahir", "Tgl Lahir"]);
+                        let nikVal = getVal(["NIK", "nik", "Nomor Induk Kependudukan"]);
+
+                        if (nikVal) {
                             const docId = 'ul_' + Math.random().toString(36).substring(2, 11);
                             const docRef = doc(colRef, docId);
                             const newItem = {
                                 id: docId,
-                                dp_id: String(row["DP-ID"] || `DP-${Math.floor(Math.random() * 1000000000)}`),
-                                nkk: String(row["NKK"] || ""),
-                                nik: String(row["NIK"]),
-                                nama: String(row["NAMA"] || "TANPA NAMA").toUpperCase(),
-                                tempat_lahir: String(row["TEMPAT LAHIR"] || ""),
+                                dp_id: String(getVal(["DP-ID", "dp_id", "ID"]) || `DP-${Math.floor(Math.random() * 1000000000)}`),
+                                nkk: String(getVal(["NKK", "nkk", "Nomor KK"]) || ""),
+                                nik: String(nikVal),
+                                nama: String(namaVal).toUpperCase(),
+                                tempat_lahir: String(getVal(["TEMPAT LAHIR", "tempat_lahir", "Tempat Lahir"]) || ""),
                                 tanggal_lahir: parseExcelDate(rawDate),
-                                sts_kawin: String(row["STS KAWIN"] || "Belum Kawin"),
-                                gender: String(row["GENDER"] || "L"),
-                                rt: String(row["RT"] || "001").trim(),
-                                kode_aksi: String(row["KODE AKSI"] || "0")
+                                sts_kawin: String(getVal(["STS KAWIN", "sts_kawin", "Status Perkawinan", "Status"]) || "Belum Kawin"),
+                                gender: String(getVal(["GENDER", "gender", "Jenis Kelamin"]) || "L").charAt(0).toUpperCase(),
+                                rt: String(getVal(["RT", "rt"]) || "001").trim(),
+                                kode_aksi: String(getVal(["KODE AKSI", "kode_aksi", "Kode", "Status Code"]) || "0")
                             };
                             batch.set(docRef, newItem);
                             importedCount++;
@@ -1296,9 +1312,12 @@
                         await batch.commit();
                         showToast(`Berhasil mengimpor & mengunggah ${importedCount} data ke Cloud!`);
                         closeUploadModal();
+                    } else {
+                        showToast("Tidak ada data valid yang ditemukan pada file.", "rose");
                     }
                 } catch (err) {
-                    showToast("Gagal membaca file Excel.", "rose");
+                    console.error("Upload error:", err);
+                    showToast("Gagal membaca file Excel. Pastikan file tidak korup.", "rose");
                 }
             };
             reader.readAsArrayBuffer(file);
