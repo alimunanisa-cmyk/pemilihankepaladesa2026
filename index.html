@@ -4,15 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Pendataan Kependudukan & Warga Desa</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome CDN for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- SheetJS (xlsx) CDN for Excel / CSV / Google Sheets Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- jsPDF CDN for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script>
@@ -55,7 +50,10 @@
                     </div>
                     <div>
                         <h1 class="font-bold text-sm sm:text-base leading-tight tracking-wide">Pendataan Warga Desa</h1>
-                        <p class="text-[11px] text-brand-100/70 hidden sm:block">Sinkronisasi Google Spreadsheet & Administrasi</p>
+                        <p class="text-[11px] text-brand-100/70 hidden sm:block flex items-center gap-1.5">
+                            <span id="syncBadgeIndicator" class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 
+                            <span id="syncBadgeText">Live Cloud Sync Aktif</span>
+                        </p>
                     </div>
                 </div>
 
@@ -380,9 +378,9 @@
 
                 <div class="flex items-center justify-between pt-2">
                     <button onclick="resetToDefaultData()" class="text-rose-600 hover:underline font-semibold flex items-center gap-1">
-                        <i class="fa-solid fa-rotate-right"></i> Kembali ke Data Bawaan
+                        <i class="fa-solid fa-rotate-right"></i> Reset ke Data Bawaan
                     </button>
-                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Belum tersinkron</span>
+                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Live Cloud Sync aktif</span>
                 </div>
             </div>
             <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
@@ -409,7 +407,7 @@
                 <div class="bg-blue-50 p-3.5 rounded-lg border border-blue-100 text-blue-800">
                     <p class="font-semibold mb-1.5"><i class="fa-solid fa-circle-info mr-1"></i> Petunjuk Upload:</p>
                     <ul class="list-disc pl-4 space-y-1">
-                        <li>Gunakan template Excel resmi yang disediakan.</li>
+                        <li>Data akan langsung tersinkron ke semua perangkat lain secara real-time.</li>
                         <li>Format kolom Tanggal: <b>YYYY-MM-DD</b>.</li>
                     </ul>
                 </div>
@@ -424,7 +422,7 @@
             <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
                 <button onclick="closeUploadModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition">Batal</button>
                 <button onclick="processExcelUpload()" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition flex items-center gap-1.5">
-                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Simpan
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Simpan Ke Cloud
                 </button>
             </div>
         </div>
@@ -442,7 +440,7 @@
                 </button>
             </div>
             <form id="wargaForm" onsubmit="saveWarga(event)" class="p-4 sm:p-6 space-y-3 sm:space-y-4 text-xs">
-                <input type="hidden" id="formIndex" value="-1">
+                <input type="hidden" id="formDocId" value="">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                         <label class="block font-semibold text-slate-700 uppercase mb-1">DP-ID <span class="text-rose-500">*</span></label>
@@ -511,7 +509,7 @@
                 <div class="flex items-center justify-end gap-2.5 pt-3.5 border-t border-slate-200 mt-5">
                     <button type="button" onclick="closeModal()" class="px-4 py-2 font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Batal</button>
                     <button type="submit" class="px-5 py-2 font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl transition shadow-md flex items-center gap-1.5">
-                        <i class="fa-solid fa-floppy-disk"></i> Simpan Data
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan Ke Cloud
                     </button>
                 </div>
             </form>
@@ -532,7 +530,11 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
         const STATUS_CODES = {
             '0': { label: 'Aktif', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
             '1': { label: 'Meninggal', badgeClass: 'bg-slate-200 text-slate-800 border-slate-400' },
@@ -546,24 +548,97 @@
             'B': { label: 'Baru', badgeClass: 'bg-sky-100 text-sky-800 border-sky-300' }
         };
 
-        let defaultWargaData = [
-            { dp_id: 'DP-330101001', nkk: '3301011203050001', nik: '3301011508850002', nama: 'BUDI SANTOSO', tempat_lahir: 'Cilacap', tanggal_lahir: '1985-08-15', sts_kawin: 'Kawin', gender: 'L', rt: '001', kode_aksi: '0' },
-            { dp_id: 'DP-330101002', nkk: '3301011203050001', nik: '3301015204880001', nama: 'SITI AMINAH', tempat_lahir: 'Banyumas', tanggal_lahir: '1988-04-12', sts_kawin: 'Kawin', gender: 'P', rt: '001', kode_aksi: '0' },
-            { dp_id: 'DP-330101003', nkk: '3301011203050002', nik: '3301012010780003', nama: 'AGUS SETIAWAN', tempat_lahir: 'Cilacap', tanggal_lahir: '1978-10-20', sts_kawin: 'Kawin', gender: 'L', rt: '001', kode_aksi: '3' },
-            { dp_id: 'DP-330101004', nkk: '3301011203050003', nik: '3301010505920004', nama: 'DEWI PRATIWI', tempat_lahir: 'Kebumen', tanggal_lahir: '1992-05-05', sts_kawin: 'Belum Kawin', gender: 'P', rt: '002', kode_aksi: 'B' },
-            { dp_id: 'DP-330101005', nkk: '3301011203050004', nik: '3301011111650005', nama: 'SLAMET RIYADI', tempat_lahir: 'Cilacap', tanggal_lahir: '1965-11-11', sts_kawin: 'Cerai Mati', gender: 'L', rt: '002', kode_aksi: '1' }
+        const defaultWargaData = [
+            { id: 'default_1', dp_id: 'DP-330101001', nkk: '3301011203050001', nik: '3301011508850002', nama: 'BUDI SANTOSO', tempat_lahir: 'Cilacap', tanggal_lahir: '1985-08-15', sts_kawin: 'Kawin', gender: 'L', rt: '001', kode_aksi: '0' },
+            { id: 'default_2', dp_id: 'DP-330101002', nkk: '3301011203050001', nik: '3301015204880001', nama: 'SITI AMINAH', tempat_lahir: 'Banyumas', tanggal_lahir: '1988-04-12', sts_kawin: 'Kawin', gender: 'P', rt: '001', kode_aksi: '0' },
+            { id: 'default_3', dp_id: 'DP-330101003', nkk: '3301011203050002', nik: '3301012010780003', nama: 'AGUS SETIAWAN', tempat_lahir: 'Cilacap', tanggal_lahir: '1978-10-20', sts_kawin: 'Kawin', gender: 'L', rt: '001', kode_aksi: '3' },
+            { id: 'default_4', dp_id: 'DP-330101004', nkk: '3301011203050003', nik: '3301010505920004', nama: 'DEWI PRATIWI', tempat_lahir: 'Kebumen', tanggal_lahir: '1992-05-05', sts_kawin: 'Belum Kawin', gender: 'P', rt: '002', kode_aksi: 'B' },
+            { id: 'default_5', dp_id: 'DP-330101005', nkk: '3301011203050004', nik: '3301011111650005', nama: 'SLAMET RIYADI', tempat_lahir: 'Cilacap', tanggal_lahir: '1965-11-11', sts_kawin: 'Cerai Mati', gender: 'L', rt: '002', kode_aksi: '1' }
         ];
 
-        let wargaData = [...defaultWargaData];
-        let dataSourceType = 'local'; // 'local' or 'gsheet'
-        let currentSheetUrl = localStorage.getItem('connected_gsheet_url') || '';
-
+        let wargaData = [];
         let currentPage = 1;
         let pageSize = 25;
         let filteredData = [];
-        let itemToDeleteIndex = -1;
+        let itemToDeleteId = null;
+        let currentSheetUrl = localStorage.getItem('connected_gsheet_url') || '';
 
-        function toggleMobileMenu() {
+        // Firebase Setup & Initialization
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'desa-warga-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        
+        let app, db, auth;
+        if (firebaseConfig) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        }
+
+        async function initAuthAndSync() {
+            if (!auth || !db) {
+                wargaData = [...defaultWargaData];
+                renderTable();
+                return;
+            }
+
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                        
+                        // Listen for real-time updates across all devices
+                        onSnapshot(colRef, async (snapshot) => {
+                            if (snapshot.empty) {
+                                // Populate default data if cloud is empty
+                                const batch = writeBatch(db);
+                                defaultWargaData.forEach(item => {
+                                    const docRef = doc(colRef, item.id);
+                                    batch.set(docRef, item);
+                                });
+                                await batch.commit();
+                            } else {
+                                wargaData = [];
+                                snapshot.forEach((docSnap) => {
+                                    wargaData.push({ id: docSnap.id, ...docSnap.data() });
+                                });
+                                renderTable();
+                                updateSyncStatusIndicator(true);
+                            }
+                        }, (error) => {
+                            console.error("Firestore sync error:", error);
+                            updateSyncStatusIndicator(false);
+                        });
+                    }
+                });
+            } catch (err) {
+                console.error("Auth initialization failed:", err);
+                wargaData = [...defaultWargaData];
+                renderTable();
+            }
+        }
+
+        function updateSyncStatusIndicator(isOnline) {
+            const dot = document.getElementById('syncBadgeIndicator');
+            const txt = document.getElementById('syncBadgeText');
+            if (dot && txt) {
+                if (isOnline) {
+                    dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+                    txt.textContent = 'Live Cloud Sync Aktif (Multi-Device)';
+                } else {
+                    dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400';
+                    txt.textContent = 'Mode Offline / Lokal';
+                }
+            }
+        }
+
+        // Global functions attachment for HTML inline event handlers
+        window.toggleMobileMenu = function() {
             const menu = document.getElementById('mobileMenuDropdown');
             const icon = document.getElementById('mobileMenuIcon');
             if (menu.classList.contains('hidden')) {
@@ -573,7 +648,7 @@
                 menu.classList.add('hidden');
                 icon.className = 'fa-solid fa-bars';
             }
-        }
+        };
 
         function parseExcelDate(val) {
             if (!val) return '';
@@ -615,12 +690,12 @@
             return age >= 0 ? age : 0;
         }
 
-        function calculateAgeFromForm() {
+        window.calculateAgeFromForm = function() {
             const dateVal = document.getElementById('formTanggalLahir').value;
             if (dateVal) {
                 document.getElementById('formUsia').value = calculateAge(dateVal);
             }
-        }
+        };
 
         function updateRTFilterOptions() {
             const rtSelect = document.getElementById('filterRT');
@@ -642,7 +717,7 @@
             });
         }
 
-        function renderTable() {
+        window.renderTable = function() {
             updateRTFilterOptions();
 
             const search = document.getElementById('searchInput')?.value.toLowerCase().trim() || '';
@@ -656,7 +731,7 @@
                                     item.nkk.includes(search) ||
                                     item.dp_id.toLowerCase().includes(search);
                 const matchRT = filterRT === '' || String(item.rt).trim() === filterRT;
-                const matchStatus = filterStatus === '' || item.kode_aksi === filterStatus;
+                const matchStatus = filterStatus === '' || String(item.kode_aksi) === filterStatus;
                 const matchGender = filterGender === '' || item.gender === filterGender;
                 return matchSearch && matchRT && matchStatus && matchGender;
             });
@@ -704,7 +779,6 @@
             } else {
                 let currentNkk = null;
                 pageData.forEach((item, pageIdx) => {
-                    const globalIdx = wargaData.indexOf(item);
                     const no = startIndex + pageIdx + 1;
                     const usia = calculateAge(item.tanggal_lahir);
                     const statusObj = STATUS_CODES[item.kode_aksi] || { label: 'Status', badgeClass: 'bg-slate-100 text-slate-700' };
@@ -751,23 +825,23 @@
                         <td class="py-2.5 px-2 text-center border-r border-slate-200 font-mono font-bold text-slate-700">${escapeHtml(item.rt)}</td>
                         <td class="py-2 px-2 no-print">
                             <div class="flex items-center justify-center gap-1.5">
-                                <select onchange="updateKodeAksiDirect(${globalIdx}, this.value)" 
+                                <select onchange="updateKodeAksiDirect('${item.id}', this.value)" 
                                         class="text-[10px] font-semibold px-1.5 py-1 rounded border shadow-sm cursor-pointer focus:outline-none ${statusObj.badgeClass}">
-                                    <option value="0" ${item.kode_aksi === '0' ? 'selected' : ''}>[0] Aktif</option>
-                                    <option value="1" ${item.kode_aksi === '1' ? 'selected' : ''}>[1] Meninggal</option>
-                                    <option value="2" ${item.kode_aksi === '2' ? 'selected' : ''}>[2] Ganda</option>
-                                    <option value="3" ${item.kode_aksi === '3' ? 'selected' : ''}>[3] TNI</option>
-                                    <option value="4" ${item.kode_aksi === '4' ? 'selected' : ''}>[4] Polisi</option>
-                                    <option value="5" ${item.kode_aksi === '5' ? 'selected' : ''}>[5] Pindah (Luar)</option>
-                                    <option value="6" ${item.kode_aksi === '6' ? 'selected' : ''}>[6] Pindah (Dalam)</option>
-                                    <option value="7" ${item.kode_aksi === '7' ? 'selected' : ''}>[7] Pisah KK</option>
-                                    <option value="8" ${item.kode_aksi === '8' ? 'selected' : ''}>[8] Bukan Warga</option>
-                                    <option value="B" ${item.kode_aksi === 'B' ? 'selected' : ''}>[B] Baru</option>
+                                    <option value="0" ${String(item.kode_aksi) === '0' ? 'selected' : ''}>[0] Aktif</option>
+                                    <option value="1" ${String(item.kode_aksi) === '1' ? 'selected' : ''}>[1] Meninggal</option>
+                                    <option value="2" ${String(item.kode_aksi) === '2' ? 'selected' : ''}>[2] Ganda</option>
+                                    <option value="3" ${String(item.kode_aksi) === '3' ? 'selected' : ''}>[3] TNI</option>
+                                    <option value="4" ${String(item.kode_aksi) === '4' ? 'selected' : ''}>[4] Polisi</option>
+                                    <option value="5" ${String(item.kode_aksi) === '5' ? 'selected' : ''}>[5] Pindah (Luar)</option>
+                                    <option value="6" ${String(item.kode_aksi) === '6' ? 'selected' : ''}>[6] Pindah (Dalam)</option>
+                                    <option value="7" ${String(item.kode_aksi) === '7' ? 'selected' : ''}>[7] Pisah KK</option>
+                                    <option value="8" ${String(item.kode_aksi) === '8' ? 'selected' : ''}>[8] Bukan Warga</option>
+                                    <option value="B" ${String(item.kode_aksi) === 'B' ? 'selected' : ''}>[B] Baru</option>
                                 </select>
-                                <button onclick="openModalEdit(${globalIdx})" class="px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded border border-amber-200 transition text-[11px] font-medium flex items-center gap-1" title="Ubah">
+                                <button onclick="openModalEdit('${item.id}')" class="px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded border border-amber-200 transition text-[11px] font-medium flex items-center gap-1" title="Ubah">
                                     <i class="fa-solid fa-pen-to-square"></i> Ubah
                                 </button>
-                                <button onclick="confirmDelete(${globalIdx})" class="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200 transition text-[11px] font-medium flex items-center gap-1" title="Hapus">
+                                <button onclick="confirmDelete('${item.id}')" class="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200 transition text-[11px] font-medium flex items-center gap-1" title="Hapus">
                                     <i class="fa-solid fa-trash-can"></i> Hapus
                                 </button>
                             </div>
@@ -793,24 +867,24 @@
                             <div class="col-span-2"><span class="text-slate-400">TTL:</span> <span>${escapeHtml(item.tempat_lahir)}, ${formatDate(item.tanggal_lahir)}</span></div>
                         </div>
                         <div class="flex flex-col gap-2 pt-2 border-t border-slate-100 no-print">
-                            <select onchange="updateKodeAksiDirect(${globalIdx}, this.value)" 
+                            <select onchange="updateKodeAksiDirect('${item.id}', this.value)" 
                                     class="text-[11px] font-semibold px-2 py-1.5 rounded border shadow-sm w-full bg-slate-50 ${statusObj.badgeClass}">
-                                <option value="0" ${item.kode_aksi === '0' ? 'selected' : ''}>Status: [0] Aktif</option>
-                                <option value="1" ${item.kode_aksi === '1' ? 'selected' : ''}>Status: [1] Meninggal</option>
-                                <option value="2" ${item.kode_aksi === '2' ? 'selected' : ''}>Status: [2] Ganda</option>
-                                <option value="3" ${item.kode_aksi === '3' ? 'selected' : ''}>Status: [3] TNI</option>
-                                <option value="4" ${item.kode_aksi === '4' ? 'selected' : ''}>Status: [4] Polisi</option>
-                                <option value="5" ${item.kode_aksi === '5' ? 'selected' : ''}>Status: [5] Pindah (Luar)</option>
-                                <option value="6" ${item.kode_aksi === '6' ? 'selected' : ''}>Status: [6] Pindah (Dalam)</option>
-                                <option value="7" ${item.kode_aksi === '7' ? 'selected' : ''}>Status: [7] Pisah KK</option>
-                                <option value="8" ${item.kode_aksi === '8' ? 'selected' : ''}>Status: [8] Bukan Warga</option>
-                                <option value="B" ${item.kode_aksi === 'B' ? 'selected' : ''}>Status: [B] Baru</option>
+                                <option value="0" ${String(item.kode_aksi) === '0' ? 'selected' : ''}>Status: [0] Aktif</option>
+                                <option value="1" ${String(item.kode_aksi) === '1' ? 'selected' : ''}>Status: [1] Meninggal</option>
+                                <option value="2" ${String(item.kode_aksi) === '2' ? 'selected' : ''}>Status: [2] Ganda</option>
+                                <option value="3" ${String(item.kode_aksi) === '3' ? 'selected' : ''}>Status: [3] TNI</option>
+                                <option value="4" ${String(item.kode_aksi) === '4' ? 'selected' : ''}>Status: [4] Polisi</option>
+                                <option value="5" ${String(item.kode_aksi) === '5' ? 'selected' : ''}>Status: [5] Pindah (Luar)</option>
+                                <option value="6" ${String(item.kode_aksi) === '6' ? 'selected' : ''}>Status: [6] Pindah (Dalam)</option>
+                                <option value="7" ${String(item.kode_aksi) === '7' ? 'selected' : ''}>Status: [7] Pisah KK</option>
+                                <option value="8" ${String(item.kode_aksi) === '8' ? 'selected' : ''}>Status: [8] Bukan Warga</option>
+                                <option value="B" ${String(item.kode_aksi) === 'B' ? 'selected' : ''}>Status: [B] Baru</option>
                             </select>
                             <div class="grid grid-cols-2 gap-2">
-                                <button onclick="openModalEdit(${globalIdx})" class="py-1.5 px-3 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg border border-amber-200 transition text-xs font-semibold flex items-center justify-center gap-1">
+                                <button onclick="openModalEdit('${item.id}')" class="py-1.5 px-3 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg border border-amber-200 transition text-xs font-semibold flex items-center justify-center gap-1">
                                     <i class="fa-solid fa-pen-to-square"></i> Ubah
                                 </button>
-                                <button onclick="confirmDelete(${globalIdx})" class="py-1.5 px-3 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 transition text-xs font-semibold flex items-center justify-center gap-1">
+                                <button onclick="confirmDelete('${item.id}')" class="py-1.5 px-3 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200 transition text-xs font-semibold flex items-center justify-center gap-1">
                                     <i class="fa-solid fa-trash-can"></i> Hapus
                                 </button>
                             </div>
@@ -825,17 +899,17 @@
             document.getElementById('pageInfo').textContent = `Hal ${currentPage}/${totalPages}`;
             document.getElementById('btnPrevPage').disabled = (currentPage <= 1);
             document.getElementById('btnNextPage').disabled = (currentPage >= totalPages);
-        }
+        };
 
         function updateKPIs() {
             const total = filteredData.length;
             const genderL = filteredData.filter(d => d.gender === 'L').length;
             const genderP = filteredData.filter(d => d.gender === 'P').length;
-            const aktif = filteredData.filter(d => d.kode_aksi === '0').length;
-            const meninggal = filteredData.filter(d => d.kode_aksi === '1').length;
-            const pindah = filteredData.filter(d => d.kode_aksi === '5' || d.kode_aksi === '6').length;
-            const tni = filteredData.filter(d => d.kode_aksi === '3').length;
-            const polisi = filteredData.filter(d => d.kode_aksi === '4').length;
+            const aktif = filteredData.filter(d => String(d.kode_aksi) === '0').length;
+            const meninggal = filteredData.filter(d => String(d.kode_aksi) === '1').length;
+            const pindah = filteredData.filter(d => String(d.kode_aksi) === '5' || String(d.kode_aksi) === '6').length;
+            const tni = filteredData.filter(d => String(d.kode_aksi) === '3').length;
+            const polisi = filteredData.filter(d => String(d.kode_aksi) === '4').length;
 
             document.getElementById('cardTotal').textContent = total;
             document.getElementById('cardGenderL').textContent = genderL;
@@ -858,21 +932,20 @@
         }
 
         // Google Sheet Integration Functions
-        function openGoogleSheetModal() {
+        window.openGoogleSheetModal = function() {
             document.getElementById('sheetUrlInput').value = currentSheetUrl;
             document.getElementById('googleSheetModal').classList.remove('hidden');
-            updateSyncStatusUI();
-        }
+        };
 
-        function closeGoogleSheetModal() {
+        window.closeGoogleSheetModal = function() {
             document.getElementById('googleSheetModal').classList.add('hidden');
-        }
+        };
 
-        function loadSampleSheetUrl() {
+        window.loadSampleSheetUrl = function() {
             document.getElementById('sheetUrlInput').value = 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/gviz/tq?tqx=out:csv';
-        }
+        };
 
-        async function syncFromGoogleSheet() {
+        window.syncFromGoogleSheet = async function() {
             const urlInput = document.getElementById('sheetUrlInput').value.trim();
             if (!urlInput) {
                 showToast('Masukkan URL Google Spreadsheet yang valid!', 'rose');
@@ -880,7 +953,7 @@
             }
 
             const statusIndicator = document.getElementById('syncStatusIndicator');
-            statusIndicator.textContent = 'Status: Menghubungkan ke Google Sheet...';
+            statusIndicator.textContent = 'Status: Mengimpor dari Google Sheet ke Cloud...';
             statusIndicator.className = 'text-amber-600 font-semibold italic';
 
             try {
@@ -901,16 +974,24 @@
                     throw new Error('Spreadsheet kosong atau format tidak dikenali.');
                 }
 
-                let importedCount = 0;
-                let newMappedData = [];
+                if (!db || !auth || !auth.currentUser) {
+                    throw new Error('Koneksi Cloud belum siap.');
+                }
 
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                const batch = writeBatch(db);
+                
+                let importedCount = 0;
                 jsonData.forEach(row => {
                     let rawDate = row["TANGGAL LAHIR"] || row["Tanggal Lahir"] || row["tanggal_lahir"] || row["Tgl Lahir"] || "2000-01-01";
                     let namaVal = row["NAMA"] || row["Nama"] || row["nama"] || row["Nama Lengkap"] || "";
                     let nikVal = row["NIK"] || row["nik"] || "";
 
                     if (nikVal) {
-                        newMappedData.push({
+                        const docId = 'ws_' + Math.random().toString(36).substring(2, 11);
+                        const docRef = doc(colRef, docId);
+                        const newItem = {
+                            id: docId,
                             dp_id: String(row["DP-ID"] || row["dp_id"] || `DP-${Math.floor(Math.random() * 1000000000)}`),
                             nkk: String(row["NKK"] || row["nkk"] || ""),
                             nik: String(nikVal),
@@ -921,20 +1002,19 @@
                             gender: String(row["GENDER"] || row["gender"] || row["Jenis Kelamin"] || "L").charAt(0).toUpperCase(),
                             rt: String(row["RT"] || row["rt"] || "001").trim(),
                             kode_aksi: String(row["KODE AKSI"] || row["kode_aksi"] || row["Kode"] || "0")
-                        });
+                        };
+                        batch.set(docRef, newItem);
                         importedCount++;
                     }
                 });
 
                 if (importedCount > 0) {
-                    wargaData = newMappedData;
-                    dataSourceType = 'gsheet';
+                    await batch.commit();
                     currentSheetUrl = urlInput;
                     localStorage.setItem('connected_gsheet_url', currentSheetUrl);
                     
                     closeGoogleSheetModal();
-                    renderTable();
-                    showToast(`Berhasil menyinkronkan ${importedCount} data dari Google Spreadsheet!`);
+                    showToast(`Berhasil mengimpor & menyinkronkan ${importedCount} data Google Sheet ke cloud!`);
                 } else {
                     throw new Error('Tidak ada data NIK valid yang ditemukan pada Spreadsheet.');
                 }
@@ -944,53 +1024,63 @@
                 statusIndicator.className = 'text-rose-600 font-semibold italic';
                 showToast(`Sinkronisasi Gagal: ${err.message}`, 'rose');
             }
-        }
+        };
 
-        function resetToDefaultData() {
-            wargaData = [...defaultWargaData];
-            dataSourceType = 'local';
-            currentSheetUrl = '';
-            localStorage.removeItem('connected_gsheet_url');
-            closeGoogleSheetModal();
-            renderTable();
-            showToast('Sumber data dikembalikan ke data bawaan lokal.');
-        }
-
-        function updateSyncStatusUI() {
-            const statusIndicator = document.getElementById('syncStatusIndicator');
-            if (dataSourceType === 'gsheet') {
-                statusIndicator.textContent = 'Status: Terhubung aktif';
-                statusIndicator.className = 'text-blue-600 font-semibold italic';
-            } else {
-                statusIndicator.textContent = 'Status: Menggunakan data lokal';
-                statusIndicator.className = 'text-slate-500 italic';
+        window.resetToDefaultData = async function() {
+            if (!db || !auth || !auth.currentUser) return;
+            try {
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                const snapshot = await getDocs(colRef);
+                const batch = writeBatch(db);
+                snapshot.forEach((d) => {
+                    batch.delete(d.ref);
+                });
+                defaultWargaData.forEach(item => {
+                    const docRef = doc(colRef, item.id);
+                    batch.set(docRef, item);
+                });
+                await batch.commit();
+                currentSheetUrl = '';
+                localStorage.removeItem('connected_gsheet_url');
+                closeGoogleSheetModal();
+                showToast('Data di-reset ke data bawaan.');
+            } catch (err) {
+                showToast('Gagal mereset data.', 'rose');
             }
-        }
+        };
 
-        // Standard Warga Operations
-        function updateKodeAksiDirect(index, newKode) {
-            wargaData[index].kode_aksi = newKode;
-            const statusName = STATUS_CODES[newKode]?.label || 'Status';
-            showToast(`Status <b>${wargaData[index].nama}</b> diubah ke <b>Kode ${newKode} (${statusName})</b>`);
-            renderTable();
-        }
+        // Standard Warga Cloud Operations
+        window.updateKodeAksiDirect = async function(id, newKode) {
+            if (!db || !auth || !auth.currentUser) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', id);
+                await updateDoc(docRef, { kode_aksi: newKode });
+                const item = wargaData.find(d => d.id === id);
+                const name = item ? item.nama : 'Warga';
+                const statusName = STATUS_CODES[newKode]?.label || 'Status';
+                showToast(`Status <b>${name}</b> diperbarui secara real-time ke <b>Kode ${newKode} (${statusName})</b>`);
+            } catch (err) {
+                showToast('Gagal memperbarui status ke cloud.', 'rose');
+            }
+        };
 
-        function openModalTambah() {
+        window.openModalTambah = function() {
             document.getElementById('modalTitle').textContent = 'Tambah Warga Baru (Kode B)';
             document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-plus text-emerald-400 text-base';
-            document.getElementById('formIndex').value = '-1';
+            document.getElementById('formDocId').value = '';
             document.getElementById('wargaForm').reset();
             const nextNum = String(wargaData.length + 1).padStart(3, '0');
             document.getElementById('formDpId').value = `DP-330101${nextNum}`;
             document.getElementById('formKodeAksi').value = 'B';
             document.getElementById('wargaModal').classList.remove('hidden');
-        }
+        };
 
-        function openModalEdit(index) {
-            const item = wargaData[index];
+        window.openModalEdit = function(id) {
+            const item = wargaData.find(d => d.id === id);
+            if (!item) return;
             document.getElementById('modalTitle').textContent = `Ubah Data - ${item.nama}`;
             document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-pen text-amber-400 text-base';
-            document.getElementById('formIndex').value = index;
+            document.getElementById('formDocId').value = item.id;
 
             document.getElementById('formDpId').value = item.dp_id;
             document.getElementById('formKodeAksi').value = item.kode_aksi;
@@ -1005,16 +1095,17 @@
             document.getElementById('formRt').value = item.rt;
 
             document.getElementById('wargaModal').classList.remove('hidden');
-        }
+        };
 
-        function closeModal() {
+        window.closeModal = function() {
             document.getElementById('wargaModal').classList.add('hidden');
-        }
+        };
 
-        function saveWarga(e) {
+        window.saveWarga = async function(e) {
             e.preventDefault();
-            const index = parseInt(document.getElementById('formIndex').value);
+            const docId = document.getElementById('formDocId').value;
             const newItem = {
+                id: docId || ('w_' + Math.random().toString(36).substring(2, 11)),
                 dp_id: document.getElementById('formDpId').value.trim(),
                 kode_aksi: document.getElementById('formKodeAksi').value,
                 nkk: document.getElementById('formNkk').value.trim(),
@@ -1027,53 +1118,65 @@
                 rt: document.getElementById('formRt').value.trim()
             };
 
-            if (index === -1) {
-                wargaData.unshift(newItem);
-                showToast(`Warga baru <b>${newItem.nama}</b> berhasil ditambahkan`);
-            } else {
-                wargaData[index] = newItem;
-                showToast(`Data warga <b>${newItem.nama}</b> berhasil diperbarui!`);
+            if (!db || !auth || !auth.currentUser) return;
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', newItem.id);
+                await setDoc(docRef, newItem);
+                
+                if (!docId) {
+                    showToast(`Warga baru <b>${newItem.nama}</b> berhasil ditambahkan ke Cloud!`);
+                } else {
+                    showToast(`Data warga <b>${newItem.nama}</b> berhasil diperbarui di Cloud!`);
+                }
+
+                closeModal();
+            } catch (err) {
+                showToast('Gagal menyimpan data ke cloud.', 'rose');
             }
+        };
 
-            closeModal();
-            renderTable();
-        }
-
-        function confirmDelete(index) {
-            itemToDeleteIndex = index;
-            const item = wargaData[index];
-            document.getElementById('deleteModalText').innerHTML = `Hapus data warga <b>${item.nama}</b> (NIK: ${item.nik})?`;
+        window.confirmDelete = function(id) {
+            itemToDeleteId = id;
+            const item = wargaData.find(d => d.id === id);
+            const name = item ? item.nama : 'Warga';
+            document.getElementById('deleteModalText').innerHTML = `Hapus data warga <b>${name}</b> dari Cloud?`;
             document.getElementById('btnConfirmDelete').onclick = () => executeDelete();
             document.getElementById('deleteModal').classList.remove('hidden');
-        }
+        };
 
-        function closeDeleteModal() {
+        window.closeDeleteModal = function() {
             document.getElementById('deleteModal').classList.add('hidden');
-            itemToDeleteIndex = -1;
-        }
+            itemToDeleteId = null;
+        };
 
-        function executeDelete() {
-            if (itemToDeleteIndex > -1) {
-                const deletedName = wargaData[itemToDeleteIndex].nama;
-                wargaData.splice(itemToDeleteIndex, 1);
-                showToast(`Data warga <b>${deletedName}</b> telah dihapus.`, 'rose');
-                closeDeleteModal();
-                renderTable();
+        async function executeDelete() {
+            if (itemToDeleteId && db && auth && auth.currentUser) {
+                try {
+                    const item = wargaData.find(d => d.id === itemToDeleteId);
+                    const deletedName = item ? item.nama : 'Warga';
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', itemToDeleteId);
+                    await deleteDoc(docRef);
+                    showToast(`Data warga <b>${deletedName}</b> telah dihapus dari Cloud.`, 'rose');
+                    closeDeleteModal();
+                } catch (err) {
+                    showToast('Gagal menghapus data dari cloud.', 'rose');
+                }
             }
         }
 
-        function prevPage() { if (currentPage > 1) { currentPage--; renderTable(); } }
-        function nextPage() {
+        window.prevPage = function() { if (currentPage > 1) { currentPage--; renderTable(); } };
+        window.nextPage = function() {
             const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
             if (currentPage < totalPages) { currentPage++; renderTable(); }
-        }
-        function changePageSize() {
+        };
+        window.changePageSize = function() {
             pageSize = parseInt(document.getElementById('pageSizeSelect').value);
             currentPage = 1;
             renderTable();
-        }
+        };
 
-        function resetFilters() {
+        window.resetFilters = function() {
             document.getElementById('searchInput').value = '';
             document.getElementById('filterRT').value = '';
             document.getElementById('filterStatus').value = '';
@@ -1081,9 +1184,9 @@
             currentPage = 1;
             renderTable();
             showToast('Filter telah direset');
-        }
+        };
 
-        function toggleLegend() {
+        window.toggleLegend = function() {
             const grid = document.getElementById('legendGrid');
             const text = document.getElementById('legendToggleText');
             const icon = document.getElementById('legendToggleIcon');
@@ -1096,7 +1199,7 @@
                 text.textContent = 'Tampilkan Legend';
                 icon.className = 'fa-solid fa-chevron-down';
             }
-        }
+        };
 
         function formatDate(dateStr) {
             const cleaned = parseExcelDate(dateStr);
@@ -1128,10 +1231,10 @@
         }
 
         // Export & Excel Upload Modals
-        function openUploadModal() { document.getElementById('uploadModal').classList.remove('hidden'); }
-        function closeUploadModal() { document.getElementById('uploadModal').classList.add('hidden'); }
+        window.openUploadModal = function() { document.getElementById('uploadModal').classList.remove('hidden'); };
+        window.closeUploadModal = function() { document.getElementById('uploadModal').classList.add('hidden'); };
 
-        function downloadTemplate() {
+        window.downloadTemplate = function() {
             const templateHeaders = [["DP-ID", "NKK", "NIK", "NAMA", "TEMPAT LAHIR", "TANGGAL LAHIR", "STS KAWIN", "GENDER", "RT", "KODE AKSI"]];
             const sampleData = [["DP-330101999", "3301011234567890", "3301019876543210", "CONTOH NAMA", "JAKARTA", "1990-01-01", "Belum Kawin", "L", "001", "0"]];
             const ws = XLSX.utils.aoa_to_sheet([...templateHeaders, ...sampleData]);
@@ -1139,25 +1242,32 @@
             XLSX.utils.book_append_sheet(wb, ws, "Template Data Warga");
             XLSX.writeFile(wb, "Template_Upload_Warga.xlsx");
             showToast("Template Excel diunduh!", "emerald");
-        }
+        };
 
-        function processExcelUpload() {
+        window.processExcelUpload = async function() {
             const file = document.getElementById('excelFileInput').files[0];
             if (!file) { showToast("Pilih file Excel!", "rose"); return; }
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
                     const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {raw: false});
                     if (jsonData.length === 0) { showToast("File Excel kosong!", "rose"); return; }
                     
+                    if (!db || !auth || !auth.currentUser) return;
+                    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                    const batch = writeBatch(db);
+
                     let importedCount = 0;
                     jsonData.forEach(row => {
                         if (row["NAMA"] === "CONTOH NAMA") return;
                         let rawDate = row["TANGGAL LAHIR"] || row["Tanggal Lahir"] || "2000-01-01";
                         if (row["NIK"]) {
-                            wargaData.push({
+                            const docId = 'ul_' + Math.random().toString(36).substring(2, 11);
+                            const docRef = doc(colRef, docId);
+                            const newItem = {
+                                id: docId,
                                 dp_id: String(row["DP-ID"] || `DP-${Math.floor(Math.random() * 1000000000)}`),
                                 nkk: String(row["NKK"] || ""),
                                 nik: String(row["NIK"]),
@@ -1168,24 +1278,24 @@
                                 gender: String(row["GENDER"] || "L"),
                                 rt: String(row["RT"] || "001").trim(),
                                 kode_aksi: String(row["KODE AKSI"] || "0")
-                            });
+                            };
+                            batch.set(docRef, newItem);
                             importedCount++;
                         }
                     });
                     if (importedCount > 0) {
-                        dataSourceType = 'local';
-                        showToast(`Berhasil mengimpor ${importedCount} data!`);
+                        await batch.commit();
+                        showToast(`Berhasil mengimpor & mengunggah ${importedCount} data ke Cloud!`);
                         closeUploadModal();
-                        renderTable();
                     }
                 } catch (err) {
                     showToast("Gagal membaca file Excel.", "rose");
                 }
             };
             reader.readAsArrayBuffer(file);
-        }
+        };
 
-        function exportToExcel() {
+        window.exportToExcel = function() {
             if (filteredData.length === 0) { showToast('Tidak ada data!', 'rose'); return; }
             const exportData = [];
             filteredData.forEach((item, idx) => {
@@ -1201,9 +1311,9 @@
             XLSX.utils.book_append_sheet(wb, ws, "Data Warga");
             XLSX.writeFile(wb, `Laporan_Warga_${new Date().toISOString().slice(0,10)}.xlsx`);
             showToast('Berhasil mengunduh Excel');
-        }
+        };
 
-        function exportToPDF() {
+        window.exportToPDF = function() {
             if (filteredData.length === 0) { showToast('Tidak ada data!', 'rose'); return; }
             try {
                 const { jsPDF } = window.jspdf;
@@ -1233,15 +1343,10 @@
             } catch (error) {
                 showToast("Gagal membuat PDF.", "rose");
             }
-        }
+        };
 
         window.onload = function() {
-            if (currentSheetUrl) {
-                document.getElementById('sheetUrlInput').value = currentSheetUrl;
-                syncFromGoogleSheet();
-            } else {
-                renderTable();
-            }
+            initAuthAndSync();
         };
     </script>
 </body>
