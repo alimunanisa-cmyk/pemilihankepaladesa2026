@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Pendataan Kependudukan & Warga Desa</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS (xlsx) CDN for Excel / CSV / Google Sheets Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF CDN for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script>
@@ -50,9 +55,9 @@
                     </div>
                     <div>
                         <h1 class="font-bold text-sm sm:text-base leading-tight tracking-wide">Pendataan Warga Desa</h1>
-                        <p class="text-[11px] text-brand-100/70 hidden sm:block flex items-center gap-1.5">
-                            <span id="syncBadgeIndicator" class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 
-                            <span id="syncBadgeText">Live Cloud Sync Aktif</span>
+                        <p class="text-[11px] text-brand-100/70 hidden sm:flex items-center gap-1.5">
+                            <span id="syncBadgeIndicator" class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> 
+                            <span id="syncBadgeText">Menghubungkan Cloud...</span>
                         </p>
                     </div>
                 </div>
@@ -380,7 +385,7 @@
                     <button onclick="resetToDefaultData()" class="text-rose-600 hover:underline font-semibold flex items-center gap-1">
                         <i class="fa-solid fa-rotate-right"></i> Reset ke Data Bawaan
                     </button>
-                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Live Cloud Sync aktif</span>
+                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Menghubungkan Cloud...</span>
                 </div>
             </div>
             <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
@@ -407,7 +412,7 @@
                 <div class="bg-blue-50 p-3.5 rounded-lg border border-blue-100 text-blue-800">
                     <p class="font-semibold mb-1.5"><i class="fa-solid fa-circle-info mr-1"></i> Petunjuk Upload:</p>
                     <ul class="list-disc pl-4 space-y-1">
-                        <li>Data akan langsung tersinkron ke semua perangkat lain secara real-time.</li>
+                        <li>Data otomatis tersinkron real-time ke semua perangkat.</li>
                         <li>Format kolom Tanggal: <b>YYYY-MM-DD</b>.</li>
                     </ul>
                 </div>
@@ -563,7 +568,6 @@
         let itemToDeleteId = null;
         let currentSheetUrl = localStorage.getItem('connected_gsheet_url') || '';
 
-        // Firebase Setup & Initialization
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'desa-warga-default';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         
@@ -578,6 +582,7 @@
             if (!auth || !db) {
                 wargaData = [...defaultWargaData];
                 renderTable();
+                updateSyncStatusIndicator(false);
                 return;
             }
 
@@ -592,10 +597,8 @@
                     if (user) {
                         const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
                         
-                        // Listen for real-time updates across all devices
                         onSnapshot(colRef, async (snapshot) => {
                             if (snapshot.empty) {
-                                // Populate default data if cloud is empty
                                 const batch = writeBatch(db);
                                 defaultWargaData.forEach(item => {
                                     const docRef = doc(colRef, item.id);
@@ -620,24 +623,33 @@
                 console.error("Auth initialization failed:", err);
                 wargaData = [...defaultWargaData];
                 renderTable();
+                updateSyncStatusIndicator(false);
             }
         }
 
         function updateSyncStatusIndicator(isOnline) {
             const dot = document.getElementById('syncBadgeIndicator');
             const txt = document.getElementById('syncBadgeText');
+            const sheetStatus = document.getElementById('syncStatusIndicator');
             if (dot && txt) {
                 if (isOnline) {
                     dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
                     txt.textContent = 'Live Cloud Sync Aktif (Multi-Device)';
+                    if (sheetStatus) {
+                        sheetStatus.textContent = 'Status: Terhubung Cloud Aktif';
+                        sheetStatus.className = 'text-emerald-600 font-semibold italic';
+                    }
                 } else {
                     dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400';
                     txt.textContent = 'Mode Offline / Lokal';
+                    if (sheetStatus) {
+                        sheetStatus.textContent = 'Status: Koneksi Cloud Belum Aktif';
+                        sheetStatus.className = 'text-amber-600 font-semibold italic';
+                    }
                 }
             }
         }
 
-        // Global functions attachment for HTML inline event handlers
         window.toggleMobileMenu = function() {
             const menu = document.getElementById('mobileMenuDropdown');
             const icon = document.getElementById('mobileMenuIcon');
@@ -931,7 +943,6 @@
             });
         }
 
-        // Google Sheet Integration Functions
         window.openGoogleSheetModal = function() {
             document.getElementById('sheetUrlInput').value = currentSheetUrl;
             document.getElementById('googleSheetModal').classList.remove('hidden');
@@ -1049,7 +1060,6 @@
             }
         };
 
-        // Standard Warga Cloud Operations
         window.updateKodeAksiDirect = async function(id, newKode) {
             if (!db || !auth || !auth.currentUser) return;
             try {
@@ -1230,7 +1240,6 @@
             }, 3500);
         }
 
-        // Export & Excel Upload Modals
         window.openUploadModal = function() { document.getElementById('uploadModal').classList.remove('hidden'); };
         window.closeUploadModal = function() { document.getElementById('uploadModal').classList.add('hidden'); };
 
