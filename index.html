@@ -353,7 +353,7 @@
             <div class="bg-emerald-700 text-white px-5 py-4 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-file-excel text-lg"></i>
-                    <h3 class="font-bold text-base">Sinkronisasi Google Spreadsheet</h3>
+                    <h3 class="font-bold text-base">Sinkronisasi & Koneksi Cloud/Sheet</h3>
                 </div>
                 <button onclick="closeGoogleSheetModal()" class="text-emerald-200 hover:text-white transition text-lg p-1">
                     <i class="fa-solid fa-xmark"></i>
@@ -361,17 +361,16 @@
             </div>
             <div class="p-5 space-y-4 text-xs">
                 <div class="bg-emerald-50 p-3.5 rounded-lg border border-emerald-100 text-emerald-900 space-y-2">
-                    <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-info text-emerald-600"></i> Cara Menghubungkan Google Sheet:</p>
+                    <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-info text-emerald-600"></i> Mengatasi Masalah Koneksi Cloud:</p>
                     <ol class="list-decimal pl-4 space-y-1 leading-relaxed text-emerald-800">
-                        <li>Buka Google Spreadsheet data warga Anda.</li>
-                        <li>Pilih menu <b>File > Bagikan > Publikasikan ke web</b> (Publish to the web).</li>
-                        <li>Pada bagian format, pilih <b>Nilai Dipisahkan Koma (.csv)</b> atau <b>Microsoft Excel (.xlsx)</b>.</li>
-                        <li>Salin tautan (URL) yang dihasilkan dan tempel di bawah ini.</li>
+                        <li>Aplikasi berjalan dengan <b>Mode Hybrid (Cloud + Penyimpanan Lokal)</b> untuk menjamin data tetap tersimpan aman.</li>
+                        <li>Jika Google Sheet gagal dimuat karena kebijakan CORS browser, Anda bisa menggunakan fitur <b>Upload File Excel / CSV</b> di samping.</li>
+                        <li>Pastikan Google Sheet berstatus <b>"Dipublikasikan ke web"</b> dengan format <b>CSV</b>.</li>
                     </ol>
                 </div>
 
                 <div>
-                    <label class="block font-semibold text-slate-700 uppercase mb-1.5">URL Publik Google Spreadsheet (CSV / XLSX)</label>
+                    <label class="block font-semibold text-slate-700 uppercase mb-1.5">URL Publik Google Spreadsheet (CSV)</label>
                     <div class="flex gap-2">
                         <input type="text" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" 
                                class="flex-1 px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono text-[11px]">
@@ -385,13 +384,13 @@
                     <button onclick="resetToDefaultData()" class="text-rose-600 hover:underline font-semibold flex items-center gap-1">
                         <i class="fa-solid fa-rotate-right"></i> Reset ke Data Bawaan
                     </button>
-                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Menghubungkan Cloud...</span>
+                    <span id="syncStatusIndicator" class="text-slate-500 italic">Status: Menyiapkan Penyimpanan...</span>
                 </div>
             </div>
             <div class="bg-slate-50 px-5 py-3.5 flex justify-end gap-2.5 border-t border-slate-200">
                 <button onclick="closeGoogleSheetModal()" class="px-4 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition">Batal</button>
                 <button onclick="syncFromGoogleSheet()" class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition flex items-center gap-1.5">
-                    <i class="fa-solid fa-cloud-arrow-down"></i> Muat & Sinkronkan
+                    <i class="fa-solid fa-cloud-arrow-down"></i> Muat Spreadsheet
                 </button>
             </div>
         </div>
@@ -567,22 +566,38 @@
         let filteredData = [];
         let itemToDeleteId = null;
         let currentSheetUrl = localStorage.getItem('connected_gsheet_url') || '';
+        let isCloudConnected = false;
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'desa-warga-default';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         
         let app, db, auth;
         if (firebaseConfig) {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+            } catch (e) {
+                console.warn("Firebase init warning:", e);
+            }
         }
 
         async function initAuthAndSync() {
-            if (!auth || !db) {
+            // Load local backup first so UI is instantly responsive
+            const localSaved = localStorage.getItem('warga_desa_local_cache');
+            if (localSaved) {
+                try {
+                    wargaData = JSON.parse(localSaved);
+                } catch (e) {
+                    wargaData = [...defaultWargaData];
+                }
+            } else {
                 wargaData = [...defaultWargaData];
-                renderTable();
-                updateSyncStatusIndicator(false);
+            }
+            renderTable();
+
+            if (!auth || !db) {
+                updateSyncStatusIndicator(false, "Mode Lokal (Tanpa Cloud Config)");
                 return;
             }
 
@@ -595,6 +610,7 @@
 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        isCloudConnected = true;
                         const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
                         
                         onSnapshot(colRef, async (snapshot) => {
@@ -610,40 +626,47 @@
                                 snapshot.forEach((docSnap) => {
                                     wargaData.push({ id: docSnap.id, ...docSnap.data() });
                                 });
+                                saveToLocalStorage();
                                 renderTable();
-                                updateSyncStatusIndicator(true);
+                                updateSyncStatusIndicator(true, "Live Cloud Sync Aktif");
                             }
                         }, (error) => {
-                            console.error("Firestore sync error:", error);
-                            updateSyncStatusIndicator(false);
+                            console.warn("Firestore snapshot warning, using local cache:", error);
+                            updateSyncStatusIndicator(false, "Mode Offline (Menggunakan Cache Lokal)");
                         });
                     }
                 });
             } catch (err) {
-                console.error("Auth initialization failed:", err);
-                wargaData = [...defaultWargaData];
-                renderTable();
-                updateSyncStatusIndicator(false);
+                console.warn("Auth initialization warning:", err);
+                updateSyncStatusIndicator(false, "Mode Offline (Gagal Autentikasi Cloud)");
             }
         }
 
-        function updateSyncStatusIndicator(isOnline) {
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('warga_desa_local_cache', JSON.stringify(wargaData));
+            } catch (e) {
+                console.error("Local storage save error:", e);
+            }
+        }
+
+        function updateSyncStatusIndicator(isOnline, customText = "") {
             const dot = document.getElementById('syncBadgeIndicator');
             const txt = document.getElementById('syncBadgeText');
             const sheetStatus = document.getElementById('syncStatusIndicator');
             if (dot && txt) {
                 if (isOnline) {
                     dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-                    txt.textContent = 'Live Cloud Sync Aktif (Multi-Device)';
+                    txt.textContent = customText || 'Live Cloud Sync Aktif';
                     if (sheetStatus) {
                         sheetStatus.textContent = 'Status: Terhubung Cloud Aktif';
                         sheetStatus.className = 'text-emerald-600 font-semibold italic';
                     }
                 } else {
                     dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400';
-                    txt.textContent = 'Mode Offline / Lokal';
+                    txt.textContent = customText || 'Mode Lokal / Cadangan Aktif';
                     if (sheetStatus) {
-                        sheetStatus.textContent = 'Status: Koneksi Cloud Belum Aktif';
+                        sheetStatus.textContent = `Status: ${customText || 'Berjalan di Perangkat Lokal'}`;
                         sheetStatus.className = 'text-amber-600 font-semibold italic';
                     }
                 }
@@ -964,7 +987,7 @@
             }
 
             const statusIndicator = document.getElementById('syncStatusIndicator');
-            statusIndicator.textContent = 'Status: Mengimpor dari Google Sheet ke Cloud...';
+            statusIndicator.textContent = 'Status: Mengimpor Spreadsheet...';
             statusIndicator.className = 'text-amber-600 font-semibold italic';
 
             try {
@@ -973,7 +996,16 @@
                     fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
                 }
 
-                const response = await fetch(fetchUrl);
+                // Try direct fetch or CORS proxy fallback
+                let response;
+                try {
+                    response = await fetch(fetchUrl);
+                } catch (corsErr) {
+                    // Fallback using public CORS proxy if direct fetch is blocked by browser CORS policy
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fetchUrl)}`;
+                    response = await fetch(proxyUrl);
+                }
+
                 if (!response.ok) throw new Error('Gagal mengakses URL Spreadsheet. Pastikan sudah dipublikasikan ke web.');
                 
                 const csvText = await response.text();
@@ -985,14 +1017,9 @@
                     throw new Error('Spreadsheet kosong atau format tidak dikenali.');
                 }
 
-                if (!db || !auth || !auth.currentUser) {
-                    throw new Error('Koneksi Cloud belum siap.');
-                }
-
-                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
-                const batch = writeBatch(db);
-                
                 let importedCount = 0;
+                const newCloudBatch = [];
+
                 jsonData.forEach(row => {
                     let rawDate = row["TANGGAL LAHIR"] || row["Tanggal Lahir"] || row["tanggal_lahir"] || row["Tgl Lahir"] || "2000-01-01";
                     let namaVal = row["NAMA"] || row["Nama"] || row["nama"] || row["Nama Lengkap"] || "";
@@ -1000,7 +1027,6 @@
 
                     if (nikVal) {
                         const docId = 'ws_' + Math.random().toString(36).substring(2, 11);
-                        const docRef = doc(colRef, docId);
                         const newItem = {
                             id: docId,
                             dp_id: String(row["DP-ID"] || row["dp_id"] || `DP-${Math.floor(Math.random() * 1000000000)}`),
@@ -1014,101 +1040,75 @@
                             rt: String(row["RT"] || row["rt"] || "001").trim(),
                             kode_aksi: String(row["KODE AKSI"] || row["kode_aksi"] || row["Kode"] || "0")
                         };
-                        batch.set(docRef, newItem);
+                        newCloudBatch.push(newItem);
                         importedCount++;
                     }
                 });
 
                 if (importedCount > 0) {
-                    await batch.commit();
+                    wargaData = newCloudBatch;
+                    saveToLocalStorage();
+
+                    if (db && auth && auth.currentUser) {
+                        try {
+                            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                            const batch = writeBatch(db);
+                            newCloudBatch.forEach(item => {
+                                batch.set(doc(colRef, item.id), item);
+                            });
+                            await batch.commit();
+                        } catch (cloudErr) {
+                            console.warn("Cloud batch write warning:", cloudErr);
+                        }
+                    }
+
                     currentSheetUrl = urlInput;
                     localStorage.setItem('connected_gsheet_url', currentSheetUrl);
                     
                     closeGoogleSheetModal();
-                    showToast(`Berhasil mengimpor & menyinkronkan ${importedCount} data Google Sheet ke cloud!`);
+                    renderTable();
+                    showToast(`Berhasil mengimpor ${importedCount} data dari Google Spreadsheet!`);
                 } else {
-                    throw new Error('Tidak ada data NIK valid yang ditemukan pada Spreadsheet.');
+                    throw new Error('Tidak ada data NIK valid yang ditemukan.');
                 }
             } catch (err) {
                 console.error(err);
                 statusIndicator.textContent = `Error: ${err.message}`;
                 statusIndicator.className = 'text-rose-600 font-semibold italic';
-                showToast(`Sinkronisasi Gagal: ${err.message}`, 'rose');
+                showToast(`Sinkronisasi Gagal: ${err.message}. Silakan gunakan tombol Upload Excel.`, 'rose');
             }
         };
 
         window.resetToDefaultData = async function() {
-            if (!db || !auth || !auth.currentUser) return;
-            try {
-                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
-                const snapshot = await getDocs(colRef);
-                const batch = writeBatch(db);
-                snapshot.forEach((d) => {
-                    batch.delete(d.ref);
-                });
-                defaultWargaData.forEach(item => {
-                    const docRef = doc(colRef, item.id);
-                    batch.set(docRef, item);
-                });
-                await batch.commit();
-                currentSheetUrl = '';
-                localStorage.removeItem('connected_gsheet_url');
-                closeGoogleSheetModal();
-                showToast('Data di-reset ke data bawaan.');
-            } catch (err) {
-                showToast('Gagal mereset data.', 'rose');
-            }
+            wargaData = [...defaultWargaData];
+            saveToLocalStorage();
+            currentSheetUrl = '';
+            localStorage.removeItem('connected_gsheet_url');
+            renderTable();
+            closeGoogleSheetModal();
+            showToast('Data di-reset ke data bawaan.');
         };
 
         window.updateKodeAksiDirect = async function(id, newKode) {
-            if (!db || !auth || !auth.currentUser) return;
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', id);
-                await updateDoc(docRef, { kode_aksi: newKode });
-                const item = wargaData.find(d => d.id === id);
-                const name = item ? item.nama : 'Warga';
-                const statusName = STATUS_CODES[newKode]?.label || 'Status';
-                showToast(`Status <b>${name}</b> diperbarui secara real-time ke <b>Kode ${newKode} (${statusName})</b>`);
-            } catch (err) {
-                showToast('Gagal memperbarui status ke cloud.', 'rose');
-            }
-        };
-
-        window.openModalTambah = function() {
-            document.getElementById('modalTitle').textContent = 'Tambah Warga Baru (Kode B)';
-            document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-plus text-emerald-400 text-base';
-            document.getElementById('formDocId').value = '';
-            document.getElementById('wargaForm').reset();
-            const nextNum = String(wargaData.length + 1).padStart(3, '0');
-            document.getElementById('formDpId').value = `DP-330101${nextNum}`;
-            document.getElementById('formKodeAksi').value = 'B';
-            document.getElementById('wargaModal').classList.remove('hidden');
-        };
-
-        window.openModalEdit = function(id) {
             const item = wargaData.find(d => d.id === id);
-            if (!item) return;
-            document.getElementById('modalTitle').textContent = `Ubah Data - ${item.nama}`;
-            document.getElementById('modalHeaderIcon').className = 'fa-solid fa-user-pen text-amber-400 text-base';
-            document.getElementById('formDocId').value = item.id;
+            if (item) {
+                item.kode_aksi = newKode;
+                saveToLocalStorage();
+                renderTable();
+                
+                const name = item.nama;
+                const statusName = STATUS_CODES[newKode]?.label || 'Status';
+                showToast(`Status <b>${name}</b> diperbarui ke <b>Kode ${newKode} (${statusName})</b>`);
 
-            document.getElementById('formDpId').value = item.dp_id;
-            document.getElementById('formKodeAksi').value = item.kode_aksi;
-            document.getElementById('formNkk').value = item.nkk;
-            document.getElementById('formNik').value = item.nik;
-            document.getElementById('formNama').value = item.nama;
-            document.getElementById('formTempatLahir').value = item.tempat_lahir;
-            document.getElementById('formTanggalLahir').value = parseExcelDate(item.tanggal_lahir);
-            document.getElementById('formUsia').value = calculateAge(item.tanggal_lahir);
-            document.getElementById('formStsKawin').value = item.sts_kawin;
-            document.getElementById('formGender').value = item.gender;
-            document.getElementById('formRt').value = item.rt;
-
-            document.getElementById('wargaModal').classList.remove('hidden');
-        };
-
-        window.closeModal = function() {
-            document.getElementById('wargaModal').classList.add('hidden');
+                if (db && auth && auth.currentUser) {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', id);
+                        await updateDoc(docRef, { kode_aksi: newKode });
+                    } catch (err) {
+                        console.warn("Cloud update warning:", err);
+                    }
+                }
+            }
         };
 
         window.saveWarga = async function(e) {
@@ -1128,21 +1128,30 @@
                 rt: document.getElementById('formRt').value.trim()
             };
 
-            if (!db || !auth || !auth.currentUser) return;
+            if (docId) {
+                const idx = wargaData.findIndex(d => d.id === docId);
+                if (idx !== -1) wargaData[idx] = newItem;
+            } else {
+                wargaData.unshift(newItem);
+            }
 
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', newItem.id);
-                await setDoc(docRef, newItem);
-                
-                if (!docId) {
-                    showToast(`Warga baru <b>${newItem.nama}</b> berhasil ditambahkan ke Cloud!`);
-                } else {
-                    showToast(`Data warga <b>${newItem.nama}</b> berhasil diperbarui di Cloud!`);
+            saveToLocalStorage();
+            renderTable();
+            closeModal();
+
+            if (!docId) {
+                showToast(`Warga baru <b>${newItem.nama}</b> berhasil ditambahkan!`);
+            } else {
+                showToast(`Data warga <b>${newItem.nama}</b> berhasil diperbarui!`);
+            }
+
+            if (db && auth && auth.currentUser) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', newItem.id);
+                    await setDoc(docRef, newItem);
+                } catch (err) {
+                    console.warn("Cloud save warning:", err);
                 }
-
-                closeModal();
-            } catch (err) {
-                showToast('Gagal menyimpan data ke cloud.', 'rose');
             }
         };
 
@@ -1150,7 +1159,7 @@
             itemToDeleteId = id;
             const item = wargaData.find(d => d.id === id);
             const name = item ? item.nama : 'Warga';
-            document.getElementById('deleteModalText').innerHTML = `Hapus data warga <b>${name}</b> dari Cloud?`;
+            document.getElementById('deleteModalText').innerHTML = `Hapus data warga <b>${name}</b>?`;
             document.getElementById('btnConfirmDelete').onclick = () => executeDelete();
             document.getElementById('deleteModal').classList.remove('hidden');
         };
@@ -1161,16 +1170,23 @@
         };
 
         async function executeDelete() {
-            if (itemToDeleteId && db && auth && auth.currentUser) {
-                try {
-                    const item = wargaData.find(d => d.id === itemToDeleteId);
-                    const deletedName = item ? item.nama : 'Warga';
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', itemToDeleteId);
-                    await deleteDoc(docRef);
-                    showToast(`Data warga <b>${deletedName}</b> telah dihapus dari Cloud.`, 'rose');
-                    closeDeleteModal();
-                } catch (err) {
-                    showToast('Gagal menghapus data dari cloud.', 'rose');
+            if (itemToDeleteId) {
+                const item = wargaData.find(d => d.id === itemToDeleteId);
+                const deletedName = item ? item.nama : 'Warga';
+                
+                wargaData = wargaData.filter(d => d.id !== itemToDeleteId);
+                saveToLocalStorage();
+                renderTable();
+                closeDeleteModal();
+                showToast(`Data warga <b>${deletedName}</b> telah dihapus.`, 'rose');
+
+                if (db && auth && auth.currentUser) {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'warga_desa', itemToDeleteId);
+                        await deleteDoc(docRef);
+                    } catch (err) {
+                        console.warn("Cloud delete warning:", err);
+                    }
                 }
             }
         }
@@ -1260,7 +1276,6 @@
             reader.onload = async function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    // Use cellDates and dense options to prevent compressed size stream corruption errors
                     const workbook = XLSX.read(data, {type: 'array', cellDates: true, dense: true});
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
@@ -1268,13 +1283,10 @@
                     
                     if (jsonData.length === 0) { showToast("File Excel kosong!", "rose"); return; }
                     
-                    if (!db || !auth || !auth.currentUser) return;
-                    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
-                    const batch = writeBatch(db);
-
                     let importedCount = 0;
+                    const uploadedBatch = [];
+
                     jsonData.forEach(row => {
-                        // Handle potential case-insensitive keys or dense array format
                         const getVal = (keys) => {
                             for (let k of keys) {
                                 if (row[k] !== undefined && row[k] !== null) return row[k];
@@ -1290,7 +1302,6 @@
 
                         if (nikVal) {
                             const docId = 'ul_' + Math.random().toString(36).substring(2, 11);
-                            const docRef = doc(colRef, docId);
                             const newItem = {
                                 id: docId,
                                 dp_id: String(getVal(["DP-ID", "dp_id", "ID"]) || `DP-${Math.floor(Math.random() * 1000000000)}`),
@@ -1304,20 +1315,36 @@
                                 rt: String(getVal(["RT", "rt"]) || "001").trim(),
                                 kode_aksi: String(getVal(["KODE AKSI", "kode_aksi", "Kode", "Status Code"]) || "0")
                             };
-                            batch.set(docRef, newItem);
+                            uploadedBatch.push(newItem);
                             importedCount++;
                         }
                     });
+
                     if (importedCount > 0) {
-                        await batch.commit();
-                        showToast(`Berhasil mengimpor & mengunggah ${importedCount} data ke Cloud!`);
+                        wargaData = uploadedBatch;
+                        saveToLocalStorage();
+                        renderTable();
+                        showToast(`Berhasil mengimpor ${importedCount} data warga!`);
                         closeUploadModal();
+
+                        if (db && auth && auth.currentUser) {
+                            try {
+                                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'warga_desa');
+                                const batch = writeBatch(db);
+                                uploadedBatch.forEach(item => {
+                                    batch.set(doc(colRef, item.id), item);
+                                });
+                                await batch.commit();
+                            } catch (cloudErr) {
+                                console.warn("Cloud batch upload warning:", cloudErr);
+                            }
+                        }
                     } else {
                         showToast("Tidak ada data valid yang ditemukan pada file.", "rose");
                     }
                 } catch (err) {
                     console.error("Upload error:", err);
-                    showToast("Gagal membaca file Excel. Pastikan file tidak korup.", "rose");
+                    showToast("Gagal membaca file Excel. Pastikan format benar.", "rose");
                 }
             };
             reader.readAsArrayBuffer(file);
